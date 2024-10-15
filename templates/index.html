@@ -1,0 +1,49 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>事故リスクマップ</title>
+    <!-- CSSファイルの読み込み -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <!-- LeafletのCSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+</head>
+<body>
+    <!-- 住所入力用のフォーム -->
+    <input type="text" id="addressInput" placeholder="住所または地名を入力">
+    <button onclick="geocodeAddress()">検索</button>
+    <!-- 新しい条件選択フォーム -->
+    <form id="risk-form">
+        <label for="weather">天候：</label>
+        <select id="weather" name="weather">
+            <option value="晴">晴</option>
+            <option value="曇">曇</option>
+            <option value="雨">雨</option>
+            <option value="霧">霧</option>
+            <option value="雪">雪</option>
+            <option value="不明">不明</option>
+        </select><br><br>
+
+        <label for="hour">時間（0-23時）：</label>
+        <input type="number" id="hour" name="hour" min="0" max="23" value="12"><br><br>
+        <label for="is_holiday">祝日：</label>
+        <select id="is_holiday" name="is_holiday">
+            <option value="0">平日</option>
+            <option value="1">祝日</option>
+        </select><br><br>
+
+        <button type="button" onclick="getRiskData()">リスクマップを表示</button>
+    </form>
+    <!-- 天気情報の表示領域 -->
+    <div id="weatherInfo"></div>
+
+    <!-- 地図の表示領域 -->
+    <div id="map" style="width: 100%; height: 500px;"></div>
+    <!-- LeafletのJavaScript -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <!-- JavaScriptファイルの読み込み -->
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+
+</body>
+</html>

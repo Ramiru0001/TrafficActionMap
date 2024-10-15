@@ -1,0 +1,21 @@
+/* static/css/styles.css */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+#addressInput {
+    width: 300px;
+    padding: 5px;
+    margin: 10px;
+}
+
+#weatherInfo {
+    margin: 10px;
+}
+
+#map {
+    height: 600px;
+    width: 100%;
+}

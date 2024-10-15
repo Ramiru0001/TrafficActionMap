@@ -1,0 +1,8 @@
+Flask==2.1.1           # バックエンドサーバー
+SQLAlchemy==1.4.32     # データベース接続
+psycopg2==2.9.3        # PostgreSQLとの接続
+pandas==1.4.1          # データ処理
+requests==2.27.1       # APIリクエスト
+geopy==2.2.0           # 近接検索や座標操作
+googlemaps==4.5.3      # Google Maps API連携
+gunicorn==20.1.0       # 本番サーバー（オプション）
