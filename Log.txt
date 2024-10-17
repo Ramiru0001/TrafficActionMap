@@ -1,0 +1,477 @@
+Area code not found for city-level muniCd: 13101
+Failed to get area code.
+Could not retrieve the area code.
+Area code not found for city-level muniCd: 13101
+Failed to get area code.
+Could not retrieve the area code.
+Area code not found for city-level muniCd: 13101
+Failed to get area code.
+Could not retrieve the area code.
+Area code not found for city-level muniCd: 13101
+Failed to get area code.
+Could not retrieve the area code.
+Area code not found for city-level muniCd: 1310100
+Failed to get area code.
+
+Could not retrieve the area code.
+The weather forecast area code for latitude 35.681236 and longitude 139.767125 is: 1310100
+Area code not found for city-level muniCd: 2712700
+Failed to get area code.
+Could not retrieve the area code.
+Area code not found for city-level muniCd: 2210100
+Failed to get area code.
+Could not retrieve the area code.
+Area code not found for city-level muniCd: 1700100
+Failed to get area code.
+Could not retrieve the area code.
+Area code not found for city-level muniCd: 1700100
+Failed to get area code.
+Could not retrieve the area code.
+Area code not found for city-level muniCd: 2712700
+Failed to get area code.
+Could not retrieve the area code.
+The weather forecast area code for latitude 34.702485 and longitude 135.495951 is: 4421200
+The weather forecast area code for latitude 34.702485 and longitude 135.495951 is: 2714000
+The weather forecast area code for latitude 35.681236 and longitude 139.767125 is: 1310100
+No results found for the given latitude and longitude.
+Failed to get municipality code.
+Could not retrieve the area code.
+The weather forecast area code for latitude 33.839157 and longitude 132.765575 is: 3820100
+The weather forecast area code for latitude 34.347987 and longitude 134.046518 is: 3720100
+Area code not found for city-level muniCd: 2020200
+Failed to get area code.
+Could not retrieve the area code.
+The weather forecast area code for latitude 36.238062 and longitude 137.969987 is: 2020201
+Area code not found for city-level code: 15113 with suffixes 00-09
+Failed to get area code.
+Could not retrieve the area code.
+Area code not found for city-level code: 15113 with suffixes 00-09
+Failed to get area code.
+Could not retrieve the area code.
+Retrieved muniCd: 15103
+Original muniCd: 15103
+Adjusted city_code (5��): 15113
+Trying candidate_code: 1511300
+Trying candidate_code: 1511301
+Trying candidate_code: 1511302
+Trying candidate_code: 1511303
+Trying candidate_code: 1511304
+Trying candidate_code: 1511305
+Trying candidate_code: 1511306
+Trying candidate_code: 1511307
+Trying candidate_code: 1511308
+Trying candidate_code: 1511309
+Area code not found for city-level code: 15113 with suffixes 00-09
+Failed to get area code.
+Could not retrieve the area code.
+Retrieved muniCd: 20202
+Original muniCd: 20202
+Adjusted city_code (5��): 20202
+Trying candidate_code: 2020200
+Trying candidate_code: 2020201
+The weather forecast area code for latitude 36.238062 and longitude 137.969987 is: 2020201
+Retrieved muniCd: 37386
+Original muniCd: 37386
+Adjusted city_code (5��): 37386
+Trying candidate_code: 3738600
+The weather forecast area code for latitude 34.31338334811827 and longitude 133.80752100358794 is: 3738600
+Retrieved muniCd: 46225
+Original muniCd: 46225
+Adjusted city_code (5��): 46225
+Trying candidate_code: 4622500
+The weather forecast area code for latitude 31.777580301322807 and longitude 130.55679356212218 is: 4622500
+Retrieved muniCd: 42211
+Original muniCd: 42211
+Adjusted city_code (5��): 42211
+Trying candidate_code: 4221100
+The weather forecast area code for latitude 32.699852738274195 and longitude 128.7481692884796 is: 4221100
+No results found for the given latitude and longitude.
+Failed to get municipality code.
+Could not retrieve the area code.
+Retrieved muniCd: 01545
+Original muniCd: 01545
+Adjusted city_code (5��): 10000
+Trying candidate_code: 1000000
+Trying candidate_code: 1000001
+Trying candidate_code: 1000002
+Trying candidate_code: 1000003
+Trying candidate_code: 1000004
+Trying candidate_code: 1000005
+Trying candidate_code: 1000006
+Trying candidate_code: 1000007
+Trying candidate_code: 1000008
+Trying candidate_code: 1000009
+Area code not found for city-level code: 10000 with suffixes 00-09
+Failed to get area code.
+Could not retrieve the area code.
+Retrieved muniCd: 01545
+Original muniCd: 01545
+Nearest city code from Excel: 100005
+Adjusted city_code (5��): 10000
+Trying candidate_code: 1000000
+Trying candidate_code: 1000001
+Trying candidate_code: 1000002
+Trying candidate_code: 1000003
+Trying candidate_code: 1000004
+Trying candidate_code: 1000005
+Trying candidate_code: 1000006
+Trying candidate_code: 1000007
+Trying candidate_code: 1000008
+Trying candidate_code: 1000009
+Area code not found for city-level code: 10000 with suffixes 00-09
+Failed to get area code.
+Could not retrieve the area code.
+Retrieved muniCd: 01545
+Original muniCd as float: 0.01545
+Retrieved muniCd: 01545
+Original muniCd as float: 0.01545
+Retrieved muniCd: 01545
+Original muniCd as float: 0.01545
+Original muniCd as float: 0.01545
+Retrieved muniCd: 01545
+Original muniCd as float: 0.01545
+mid_code_float: 0.272141, type: <class 'float'>
+code_float: 0.01545, type: <class 'float'>
+mid_code_float: 0.16322, type: <class 'float'>
+code_float: 0.01545, type: <class 'float'>
+mid_code_float: 0.132071, type: <class 'float'>
+code_float: 0.01545, type: <class 'float'>
+mid_code_float: 0.121002, type: <class 'float'>
+code_float: 0.01545, type: <class 'float'>
+mid_code_float: 0.112194, type: <class 'float'>
+code_float: 0.01545, type: <class 'float'>
+mid_code_float: 0.104434, type: <class 'float'>
+code_float: 0.01545, type: <class 'float'>
+mid_code_float: 0.102121, type: <class 'float'>
+code_float: 0.01545, type: <class 'float'>
+mid_code_float: 0.102059, type: <class 'float'>
+code_float: 0.01545, type: <class 'float'>
+mid_code_float: 0.102016, type: <class 'float'>
+code_float: 0.01545, type: <class 'float'>
+mid_code_float: 0.100005, type: <class 'float'>
+code_float: 0.01545, type: <class 'float'>
+Nearest city code from Excel: 100005
+Adjusted city_code (5��): 10000
+Trying candidate_code: 1000000
+Trying candidate_code: 1000001
+Trying candidate_code: 1000002
+Trying candidate_code: 1000003
+Trying candidate_code: 1000004
+Trying candidate_code: 1000005
+Trying candidate_code: 1000006
+Trying candidate_code: 1000007
+Trying candidate_code: 1000008
+Trying candidate_code: 1000009
+Area code not found for city-level code: 10000 with suffixes 00-09
+Failed to get area code.
+Could not retrieve the area code.
+Retrieved muniCd: 01545
+Original muniCd as float: 0.01545
+Nearest city code from Excel: 100005
+Adjusted city_code (5��): 10000
+Trying candidate_code: 1000000
+Trying candidate_code: 1000001
+Trying candidate_code: 1000002
+Trying candidate_code: 1000003
+Trying candidate_code: 1000004
+Trying candidate_code: 1000005
+Trying candidate_code: 1000006
+Trying candidate_code: 1000007
+Trying candidate_code: 1000008
+Trying candidate_code: 1000009
+Area code not found for city-level code: 10000 with suffixes 00-09
+Failed to get area code.
+Could not retrieve the area code.
+Retrieved muniCd: 01545
+Original muniCd as float: 0.01545
+Nearest city code from Excel: 100005
+Adjusted city_code (5��): 10000
+Trying candidate_code: 1000000
+Trying candidate_code: 1000001
+Trying candidate_code: 1000002
+Trying candidate_code: 1000003
+Trying candidate_code: 1000004
+Trying candidate_code: 1000005
+Trying candidate_code: 1000006
+Trying candidate_code: 1000007
+Trying candidate_code: 1000008
+Trying candidate_code: 1000009
+Area code not found for city-level code: 10000 with suffixes 00-09
+Failed to get area code.
+Could not retrieve the area code.
+Retrieved muniCd: 01545
+Original muniCd: 01545
+Adjusted city_code (5��): 10000
+Trying candidate_code: 1000000
+Trying candidate_code: 1000001
+Trying candidate_code: 1000002
+Trying candidate_code: 1000003
+Trying candidate_code: 1000004
+Trying candidate_code: 1000005
+Trying candidate_code: 1000006
+Trying candidate_code: 1000007
+Trying candidate_code: 1000008
+Trying candidate_code: 1000009
+Area code not found for city-level code: 10000 with suffixes 00-09
+Failed to get area code.
+Could not retrieve the area code.
+Retrieved muniCd: 01545
+Adjusted muniCd (5��): 01545
+Nearest code: 10000
+Trying candidate_code: 1000000
+Trying candidate_code: 1000001
+Trying candidate_code: 1000002
+Trying candidate_code: 1000003
+Trying candidate_code: 1000004
+Trying candidate_code: 1000005
+Trying candidate_code: 1000006
+Trying candidate_code: 1000007
+Trying candidate_code: 1000008
+Trying candidate_code: 1000009
+Area code not found for city-level code: 10000 with suffixes 00-09
+Failed to get area code.
+Could not retrieve the area code.
+Retrieved muniCd: 01545
+Adjusted muniCd (5��): 01545
+Nearest code: 10000
+Trying candidate_code: 1000000
+Trying candidate_code: 1000001
+Trying candidate_code: 1000002
+Trying candidate_code: 1000003
+Trying candidate_code: 1000004
+Trying candidate_code: 1000005
+Trying candidate_code: 1000006
+Trying candidate_code: 1000007
+Trying candidate_code: 1000008
+Trying candidate_code: 1000009
+Area code not found for city-level code: 10000 with suffixes 00-09
+Failed to get area code.
+Could not retrieve the area code.
+Retrieved muniCd: 01545
+Adjusted muniCd (int): 1545
+Nearest code: 10000
+Trying candidate_code: 1000000
+Trying candidate_code: 1000001
+Trying candidate_code: 1000002
+Trying candidate_code: 1000003
+Trying candidate_code: 1000004
+Trying candidate_code: 1000005
+Trying candidate_code: 1000006
+Trying candidate_code: 1000007
+Trying candidate_code: 1000008
+Trying candidate_code: 1000009
+Area code not found for city-level code: 10000 with suffixes 00-09
+Failed to get area code.
+Could not retrieve the area code.
+�擾���������̃R�[�h (muniCd): 01545
+������̎����̃R�[�h (�����l): 1545
+code_int (1545) �� city_codes �ɑ��݂��܂���B
+left: 0, right: 1793, mid: 896, mid_code_int: 27214
+left: 0, right: 895, mid: 447, mid_code_int: 16322
+left: 0, right: 446, mid: 223, mid_code_int: 13207
+left: 0, right: 222, mid: 111, mid_code_int: 12100
+left: 0, right: 110, mid: 55, mid_code_int: 11219
+left: 0, right: 54, mid: 27, mid_code_int: 10443
+left: 0, right: 26, mid: 13, mid_code_int: 10212
+left: 0, right: 12, mid: 6, mid_code_int: 10205
+left: 0, right: 5, mid: 2, mid_code_int: 10201
+left: 0, right: 1, mid: 0, mid_code_int: 10000
+�ł��߂��R�[�h: 10000
+Trying candidate_code: 1000000
+Trying candidate_code: 1000001
+Trying candidate_code: 1000002
+Trying candidate_code: 1000003
+Trying candidate_code: 1000004
+Trying candidate_code: 1000005
+Trying candidate_code: 1000006
+Trying candidate_code: 1000007
+Trying candidate_code: 1000008
+Trying candidate_code: 1000009
+�n��R�[�h��������܂���ł����B�s���x���̃R�[�h: 10000
+�n��R�[�h�̎擾�Ɏ��s���܂����B
+�n��R�[�h���擾�ł��܂���ł����B
+取得した自治体コード (muniCd): 01545
+調整後の自治体コード (整数値): 1545
+code_int (1545) は city_codes に存在しません。
+left: 0, right: 1793, mid: 896, mid_code_int: 27214
+left: 0, right: 895, mid: 447, mid_code_int: 16322
+left: 0, right: 446, mid: 223, mid_code_int: 13207
+left: 0, right: 222, mid: 111, mid_code_int: 12100
+left: 0, right: 110, mid: 55, mid_code_int: 11219
+left: 0, right: 54, mid: 27, mid_code_int: 10443
+left: 0, right: 26, mid: 13, mid_code_int: 10212
+left: 0, right: 12, mid: 6, mid_code_int: 10205
+left: 0, right: 5, mid: 2, mid_code_int: 10201
+left: 0, right: 1, mid: 0, mid_code_int: 10000
+最も近いコード: 10000
+Trying candidate_code: 1000000
+Trying candidate_code: 1000001
+Trying candidate_code: 1000002
+Trying candidate_code: 1000003
+Trying candidate_code: 1000004
+Trying candidate_code: 1000005
+Trying candidate_code: 1000006
+Trying candidate_code: 1000007
+Trying candidate_code: 1000008
+Trying candidate_code: 1000009
+地域コードが見つかりませんでした。市レベルのコード: 10000
+地域コードの取得に失敗しました。
+地域コードを取得できませんでした。
+取得した自治体コード (muniCd): 01545
+調整後の自治体コード (整数値): 1545
+code_int (1545) は city_codes に存在しません。
+left: 0, right: 1793, mid: 896, mid_code_int: 27214
+left: 0, right: 895, mid: 447, mid_code_int: 16322
+left: 0, right: 446, mid: 223, mid_code_int: 13207
+left: 0, right: 222, mid: 111, mid_code_int: 12100
+left: 0, right: 110, mid: 55, mid_code_int: 11219
+left: 0, right: 54, mid: 27, mid_code_int: 10443
+left: 0, right: 26, mid: 13, mid_code_int: 10212
+left: 0, right: 12, mid: 6, mid_code_int: 10205
+left: 0, right: 5, mid: 2, mid_code_int: 10201
+left: 0, right: 1, mid: 0, mid_code_int: 10000
+最も近いコード: 10000
+Trying candidate_code: 1000000
+Trying candidate_code: 1000001
+Trying candidate_code: 1000002
+Trying candidate_code: 1000003
+Trying candidate_code: 1000004
+Trying candidate_code: 1000005
+Trying candidate_code: 1000006
+Trying candidate_code: 1000007
+Trying candidate_code: 1000008
+Trying candidate_code: 1000009
+地域コードが見つかりませんでした。市レベルのコード: 10000
+地域コードの取得に失敗しました。
+地域コードを取得できませんでした。
+city_codesの最小値: 10000, 最大値: 94111
+取得した自治体コード (muniCd): 01545
+調整後の自治体コード (整数値): 1545
+code_int (1545) は city_codes に存在しません。
+left: 0, right: 1793, mid: 896, mid_code_int: 27214
+left: 0, right: 895, mid: 447, mid_code_int: 16322
+left: 0, right: 446, mid: 223, mid_code_int: 13207
+left: 0, right: 222, mid: 111, mid_code_int: 12100
+left: 0, right: 110, mid: 55, mid_code_int: 11219
+left: 0, right: 54, mid: 27, mid_code_int: 10443
+left: 0, right: 26, mid: 13, mid_code_int: 10212
+left: 0, right: 12, mid: 6, mid_code_int: 10205
+left: 0, right: 5, mid: 2, mid_code_int: 10201
+left: 0, right: 1, mid: 0, mid_code_int: 10000
+最も近いコード: 10000
+Trying candidate_code: 1000000
+Trying candidate_code: 1000001
+Trying candidate_code: 1000002
+Trying candidate_code: 1000003
+Trying candidate_code: 1000004
+Trying candidate_code: 1000005
+Trying candidate_code: 1000006
+Trying candidate_code: 1000007
+Trying candidate_code: 1000008
+Trying candidate_code: 1000009
+地域コードが見つかりませんでした。市レベルのコード: 10000
+地域コードの取得に失敗しました。
+地域コードを取得できませんでした。
+city_codesの最小値: 10000, 最大値: 94111
+取得した自治体コード (muniCd): 01545
+調整後の自治体コード (整数値): 1545
+code_int (1545) は city_codes に存在しません。
+left: 0, right: 1793, mid: 896, mid_code_int: 27214
+left: 0, right: 895, mid: 447, mid_code_int: 16322
+left: 0, right: 446, mid: 223, mid_code_int: 13207
+left: 0, right: 222, mid: 111, mid_code_int: 12100
+left: 0, right: 110, mid: 55, mid_code_int: 11219
+left: 0, right: 54, mid: 27, mid_code_int: 10443
+left: 0, right: 26, mid: 13, mid_code_int: 10212
+left: 0, right: 12, mid: 6, mid_code_int: 10205
+left: 0, right: 5, mid: 2, mid_code_int: 10201
+left: 0, right: 1, mid: 0, mid_code_int: 10000
+最も近いコード: 10000
+Trying candidate_code: 1000000
+Trying candidate_code: 1000001
+Trying candidate_code: 1000002
+Trying candidate_code: 1000003
+Trying candidate_code: 1000004
+Trying candidate_code: 1000005
+Trying candidate_code: 1000006
+Trying candidate_code: 1000007
+Trying candidate_code: 1000008
+Trying candidate_code: 1000009
+地域コードが見つかりませんでした。市レベルのコード: 10000
+地域コードの取得に失敗しました。
+地域コードを取得できませんでした。
+city_codesの最小値: 1000, 最大値: 47382
+取得した自治体コード (muniCd): 01545
+調整後の自治体コード (整数値): 1545
+city_codes内の周辺コード: [1518, 1519, 1520, 1543, 1544, 1545, 1546, 1547, 1549, 1550]
+left: 0, right: 1793, mid: 896, mid_code_int: 20403
+left: 0, right: 895, mid: 447, mid_code_int: 8232
+left: 0, right: 446, mid: 223, mid_code_int: 2443
+left: 0, right: 222, mid: 111, mid_code_int: 1486
+left: 112, right: 222, mid: 167, mid_code_int: 1648
+left: 112, right: 166, mid: 139, mid_code_int: 1578
+left: 112, right: 138, mid: 125, mid_code_int: 1546
+left: 112, right: 124, mid: 118, mid_code_int: 1517
+left: 119, right: 124, mid: 121, mid_code_int: 1520
+left: 122, right: 124, mid: 123, mid_code_int: 1544
+left: 124, right: 124, mid: 124, mid_code_int: 1545
+一致するコードが見つかりました: 1545
+最も近いコード: 01545
+Trying candidate_code: 0154500
+緯度 43.899447806074406、経度 144.8764788043336 の天気予報地域コードは: 0154500 です。
+city_codesの最小値: 1000, 最大値: 47382
+取得した自治体コード (muniCd): 01214
+調整後の自治体コード (整数値): 1214
+city_codes内の周辺コード: [1209, 1210, 1211, 1212, 1213, 1214, 1215, 1216, 1217, 1218]
+left: 0, right: 1793, mid: 896, mid_code_int: 20403
+left: 0, right: 895, mid: 447, mid_code_int: 8232
+left: 0, right: 446, mid: 223, mid_code_int: 2443
+left: 0, right: 222, mid: 111, mid_code_int: 1486
+left: 0, right: 110, mid: 55, mid_code_int: 1392
+left: 0, right: 54, mid: 27, mid_code_int: 1227
+left: 0, right: 26, mid: 13, mid_code_int: 1213
+left: 14, right: 26, mid: 20, mid_code_int: 1220
+left: 14, right: 19, mid: 16, mid_code_int: 1216
+left: 14, right: 15, mid: 14, mid_code_int: 1214
+一致するコードが見つかりました: 1214
+最も近いコード: 01214
+Trying candidate_code: 0121400
+緯度 45.32630353619495、経度 141.86403294901464 の天気予報地域コードは: 0121400 です。
+city_codesの最小値: 1000, 最大値: 47382
+取得した自治体コード (muniCd): 32528
+調整後の自治体コード (整数値): 32528
+city_codes内の周辺コード: [32501, 32505, 32525, 32526, 32527, 32528, 33000, 33100, 33202, 33203]
+left: 0, right: 1793, mid: 896, mid_code_int: 20403
+left: 897, right: 1793, mid: 1345, mid_code_int: 33204
+left: 897, right: 1344, mid: 1120, mid_code_int: 26202
+left: 1121, right: 1344, mid: 1232, mid_code_int: 29202
+left: 1233, right: 1344, mid: 1288, mid_code_int: 30382
+left: 1289, right: 1344, mid: 1316, mid_code_int: 31389
+left: 1317, right: 1344, mid: 1330, mid_code_int: 32343
+left: 1331, right: 1344, mid: 1337, mid_code_int: 32525
+left: 1338, right: 1344, mid: 1341, mid_code_int: 33000
+left: 1338, right: 1340, mid: 1339, mid_code_int: 32527
+left: 1340, right: 1340, mid: 1340, mid_code_int: 32528
+一致するコードが見つかりました: 32528
+最も近いコード: 32528
+Trying candidate_code: 3252800
+緯度 36.259361042726304、経度 133.27569103025252 の天気予報地域コードは: 3252800 です。
+city_codesの最小値: 1000, 最大値: 47382
+取得した自治体コード (muniCd): 24443
+調整後の自治体コード (整数値): 24443
+city_codes内の周辺コード: [24341, 24343, 24344, 24441, 24442, 24443, 24461, 24470, 24471, 24472]
+left: 0, right: 1793, mid: 896, mid_code_int: 20403
+left: 897, right: 1793, mid: 1345, mid_code_int: 33204
+left: 897, right: 1344, mid: 1120, mid_code_int: 26202
+left: 897, right: 1119, mid: 1008, mid_code_int: 22344
+left: 1009, right: 1119, mid: 1064, mid_code_int: 23561
+left: 1065, right: 1119, mid: 1092, mid_code_int: 24471
+left: 1065, right: 1091, mid: 1078, mid_code_int: 24212
+left: 1079, right: 1091, mid: 1085, mid_code_int: 24343
+left: 1086, right: 1091, mid: 1088, mid_code_int: 24442
+left: 1089, right: 1091, mid: 1090, mid_code_int: 24461
+left: 1089, right: 1089, mid: 1089, mid_code_int: 24443
+一致するコードが見つかりました: 24443
+最も近いコード: 24443
+Trying candidate_code: 2444300
+緯度 34.354710503107086、経度 136.35887471608626 の天気予報地域コードは: 2444300 です。

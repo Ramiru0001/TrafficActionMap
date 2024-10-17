@@ -16,7 +16,8 @@ from astral import LocationInfo
 from astral.sun import sun
 import numpy as np
 import pytz
-
+from get_weather_area_code import get_weather_area_code
+import traceback
 app = Flask(__name__)
 
 # モデルとラベルエンコーダーの読み込み
@@ -116,81 +117,32 @@ def is_holiday():
     return jpholiday.is_holiday(today)
 
 def get_weather(lat, lon):
-    # 緯度・経度から地域コードを取得する（簡略化のため固定値を使用）
-    # 実際には緯度・経度から最寄りの地域を特定する必要があります
-    area_code = '130000'  # 東京都の地域コード
-
-    # 気象庁の天気予報XMLデータのURL
-    url = f'https://www.jma.go.jp/bosai/forecast/data/overview_forecast/{area_code}.xml'
-
-    response = requests.get(url)
-    response.encoding = response.apparent_encoding
-    root = ET.fromstring(response.content)
-
-    # 天気概要テキストを取得
-    weather_text = root.findtext('Text')
-
-    return weather_text
-# 緯度・経度から自治体コードを取得する
-#国土地理院が提供する逆ジオコーディングAPIを利用して、緯度・経度から自治体コード（muniCd）を取得します。
-def get_municipality_code(lat, lon):
-    url = f'https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat={lat}&lon={lon}'
-    response = requests.get(url)
-    if response.status_code == 200:
-        data = response.json()
-        results = data.get('results')
-        if results and len(results) > 0:
-            muniCd = results[0].get('muniCd')
-            return muniCd
-        elif isinstance(results, dict):
-                muniCd = results.get('muniCd')
-                return muniCd
-        else:
-            print("No results found for the given latitude and longitude.")
+    try:
+        area_code = get_weather_area_code(lat, lon)
+        if not area_code:
+            print("地域コードの取得に失敗しました。")
             return None
-    else:
-        print(f"API request failed with status code {response.status_code}")
-        return None
 
-import json
-import requests
+        # 気象庁の天気予報データを取得
+        #url = f'https://www.jma.go.jp/bosai/forecast/data/forecast/{area_code}.json'
+        url = f'https://www.jma.go.jp/bosai/forecast/data/overview_forecast/{area_code}.json'
 
-def get_area_code(muniCd):
-    # area.jsonを取得
-    url = 'https://www.jma.go.jp/bosai/common/const/area.json'
-    response = requests.get(url)
-    if response.status_code != 200:
-        return None
-    area_data = response.json()
-
-    # 'class20s'セクションから検索
-    class20s = area_data.get('class20s', {})
-    for area_code, info in class20s.items():
-        if 'muniCd' in info and info['muniCd'] == muniCd:
-            # オフィス（都道府県）コードを取得
-            offices_code = area_data['class20s'][area_code]['parent']
-            return offices_code  # これが天気予報取得に使う地域コードです
-
-    return None  # 該当する地域コードが見つからない場合
-
-def get_weather(area_code):
-    url = f'https://www.jma.go.jp/bosai/forecast/data/forecast/{area_code}.json'
-    response = requests.get(url)
-    if response.status_code == 200:
-        data = response.json()
-        # 必要な情報を抽出します
-        # 例として、最初のタイムシリーズの最初のエリアの天気を取得
-        time_series = data[0]['timeSeries']
-        for series in time_series:
-            if series['timeDefines']:
-                areas = series['areas']
-                for area in areas:
-                    # エリア名やコードを確認する場合
-                    # area_name = area['area']['name']
-                    weathers = area['weathers']
-                    return weathers  # 天気情報のリスト
-        return None
-    else:
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            # 天気情報を解析して必要なデータを取得
+            time_series = data[0]['timeSeries']
+            for series in time_series:
+                if 'weathers' in series['areas'][0]:
+                    weathers = series['areas'][0]['weathers']
+                    # ここでは、最初の天気情報を返す
+                    return weathers[0]
+            return None
+        else:
+            print(f"天気データの取得に失敗しました。ステータスコード: {response.status_code}")
+            return None
+    except Exception as e:
+        traceback.print_exc()  # エラーの詳細を表示
         return None
 
 @app.route('/')
@@ -199,30 +151,23 @@ def index():
 
 @app.route('/get_weather_and_risk_data', methods=['POST'])
 def get_weather_and_risk_data():
-    data = request.get_json()
-    lat = data['lat']
-    lon = data['lon']
+    try:
+        data = request.get_json()
+        lat = data['lat']
+        lon = data['lon']
+        weather = get_weather(lat,lon)
+        print(f"緯度 {lat}、経度 {lon} の天気は: {weather} です。",flush=True)
+        if not weather:
+            return jsonify({'error': '天気データの取得に失敗しました'}), 500
 
-    muniCd = get_municipality_code(lat, lon)
-    if not muniCd:
-        return jsonify({'error': '自治体コードの取得に失敗しました'}), 500
+        # 仮のデータを返す
+        #weather = '晴れ'
+        risk_data = []
 
-    area_code = get_area_code(muniCd)
-    if not area_code:
-        return jsonify({'error': '地域コードの取得に失敗しました'}), 500
-
-    weather = get_weather(area_code)
-    if not weather:
-        return jsonify({'error': '天気データの取得に失敗しました'}), 500
-
-    # リスクデータを準備
-    # risk_data = nearby_data[['latitude', 'longitude', 'risk_score']].to_dict(orient='records')
-
-    # 仮のデータを返す
-    #weather = '晴れ'
-    risk_data = []
-
-    return jsonify({'weather': weather, 'riskData': risk_data})
+        return jsonify({'weather': weather, 'riskData': risk_data})
+    except Exception as e:
+        traceback.print_exc()  # スタックトレースをコンソールに出力
+        return jsonify({'error': 'サーバーエラーが発生しました'}), 500
 
 # app.py の更新部分
 
