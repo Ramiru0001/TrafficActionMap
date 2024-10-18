@@ -16,7 +16,8 @@ from astral import LocationInfo
 from astral.sun import sun
 import numpy as np
 import pytz
-from get_weather_area_code import get_weather_area_code
+from get_weather_area_code import get_weather_area_code, get_office_code_from_class20_code
+
 import traceback
 app = Flask(__name__)
 
@@ -118,32 +119,56 @@ def is_holiday():
 
 def get_weather(lat, lon):
     try:
-        area_code = get_weather_area_code(lat, lon)
-        if not area_code:
+        # 緯度・経度から class20s のコードを取得
+        class20_code = get_weather_area_code(lat, lon)
+        if not class20_code:
             print("地域コードの取得に失敗しました。")
             return None
-
-        # 気象庁の天気予報データを取得
-        #url = f'https://www.jma.go.jp/bosai/forecast/data/forecast/{area_code}.json'
-        url = f'https://www.jma.go.jp/bosai/forecast/data/overview_forecast/{area_code}.json'
-
-        response = requests.get(url)
-        if response.status_code == 200:
-            data = response.json()
-            # 天気情報を解析して必要なデータを取得
-            time_series = data[0]['timeSeries']
-            for series in time_series:
-                if 'weathers' in series['areas'][0]:
-                    weathers = series['areas'][0]['weathers']
-                    # ここでは、最初の天気情報を返す
-                    return weathers[0]
+        
+        # class20s コードから office コードを取得
+        office_code = get_office_code_from_class20_code(class20_code)
+        if not office_code:
+            print("office コードの取得に失敗しました。")
             return None
-        else:
-            print(f"天気データの取得に失敗しました。ステータスコード: {response.status_code}")
+        
+        # 天気データの取得
+        url  = f'https://www.jma.go.jp/bosai/forecast/data/overview_forecast/{office_code}.json'
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            data = response.json()
+
+            # 天気情報を解析して、指定した class20_code に対応するエリアの天気を取得
+            weather_info = extract_weather_info(data, class20_code)
+            if weather_info:
+                print(f"取得した天気情報: {weather_info}")
+                return weather_info
+            else:
+                print("天気情報の解析に失敗しました。")
+                return None
+
+        except Exception as e:
+            print(f"天気データの取得に失敗しました。エラー: {e}")
             return None
     except Exception as e:
         traceback.print_exc()  # エラーの詳細を表示
         return None
+def extract_weather_info(data, class20_code):
+    # データ内の timeSeries を走査
+    print(f"デバッグ: 指定された class20_code = {class20_code}")
+    for series in data[0]['timeSeries']:
+        # 'areas' を走査
+        for area in series['areas']:
+            # area の code が class20_code と一致する場合
+            if area['area']['code'] == class20_code:
+                # 天気情報を取得
+                if 'weathers' in area:
+                    return area['weathers'][0]  # 最初の天気情報を返す
+                elif 'weatherCodes' in area:
+                    # weatherCodes から天気情報を取得する場合（必要に応じて実装）
+                    pass
+    return None  # 該当する天気情報が見つからない場合
+
 
 @app.route('/')
 def index():

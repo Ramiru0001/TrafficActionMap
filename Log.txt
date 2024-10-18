@@ -475,3 +475,29 @@ left: 1089, right: 1089, mid: 1089, mid_code_int: 24443
 最も近いコード: 24443
 Trying candidate_code: 2444300
 緯度 34.354710503107086、経度 136.35887471608626 の天気予報地域コードは: 2444300 です。
+city_codesの最小値: 1000, 最大値: 47382
+取得した自治体コード (muniCd): 24443
+調整後の自治体コード (整数値): 24443
+city_codes内の周辺コード: [24341, 24343, 24344, 24441, 24442, 24443, 24461, 24470, 24471, 24472]
+left: 0, right: 1793, mid: 896, mid_code_int: 20403
+left: 897, right: 1793, mid: 1345, mid_code_int: 33204
+left: 897, right: 1344, mid: 1120, mid_code_int: 26202
+left: 897, right: 1119, mid: 1008, mid_code_int: 22344
+left: 1009, right: 1119, mid: 1064, mid_code_int: 23561
+left: 1065, right: 1119, mid: 1092, mid_code_int: 24471
+left: 1065, right: 1091, mid: 1078, mid_code_int: 24212
+left: 1079, right: 1091, mid: 1085, mid_code_int: 24343
+left: 1086, right: 1091, mid: 1088, mid_code_int: 24442
+left: 1089, right: 1091, mid: 1090, mid_code_int: 24461
+left: 1089, right: 1089, mid: 1089, mid_code_int: 24443
+一致するコードが見つかりました: 24443
+最も近いコード: 24443
+地域コードが見つかりませんでした。市レベルのコード: 24443
+地域コードの取得に失敗しました。
+地域コードを取得できませんでした。
+city_codesの最小値: 1000, 最大値: 47382
+city_codesの最小値: 1000, 最大値: 47382
+city_codesの最小値: 1000, 最大値: 47382
+city_codesの最小値: 1000, 最大値: 47382
+city_codesの最小値: 1000, 最大値: 47382
+city_codesの最小値: 1000, 最大値: 47382
