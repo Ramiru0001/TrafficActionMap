@@ -1,0 +1,2 @@
+py get_amedas_weather.py
+pause

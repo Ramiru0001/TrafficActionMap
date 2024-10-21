@@ -3,7 +3,6 @@ import requests
 import pandas as pd
 import sys
 import io
-import requests
 import math
 # 標準出力のエンコーディングをUTF-8に設定
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -209,7 +208,7 @@ def get_current_weather(lat, lon):
     url = f'https://www.jma.go.jp/bosai/amedas/data/latest_time.txt'
     response = requests.get(url)
     response.raise_for_status()
-    latest_time = response.json()['latestTime']
+    latest_time = response.text()['latestTime']
     #data_url = f'https://www.jma.go.jp/bosai/amedas/data/map/{latest_time}.json'
     data_url = f'https://www.jma.go.jp/bosai/amedas/data/point/{station_code}/{latest_time}.json'
     response = requests.get(data_url)
