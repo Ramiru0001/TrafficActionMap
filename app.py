@@ -16,10 +16,14 @@ from astral import LocationInfo
 from astral.sun import sun
 import numpy as np
 import pytz
-from get_weather_area_code import get_weather_area_code, get_office_code_from_class20_code
-
+import os  # 環境変数から API キーを取得するために追加
+# OpenWeatherMap用のモジュールをインポート
+import get_OpenWeatherMap
 import traceback
+
 app = Flask(__name__)
+# 環境変数から API キーを取得
+api_key = os.environ.get('OPENWEATHERMAP_API_KEY')
 
 # モデルとラベルエンコーダーの読み込み
 model = joblib.load('accident_risk_model.pkl')
@@ -117,38 +121,15 @@ def is_holiday():
     today = datetime.date.today()
     return jpholiday.is_holiday(today)
 
-def get_weather(lat, lon):
+def get_weather(lat, lon,api_key):
     try:
-        # 緯度・経度から class20s のコードを取得
-        class20_code = get_weather_area_code(lat, lon)
-        if not class20_code:
-            print("地域コードの取得に失敗しました。")
-            return None
-        
-        # class20s コードから office コードを取得
-        office_code = get_office_code_from_class20_code(class20_code)
-        if not office_code:
-            print("office コードの取得に失敗しました。")
-            return None
-        
-        # 天気データの取得
-        url  = f'https://www.jma.go.jp/bosai/forecast/data/overview_forecast/{office_code}.json'
-        try:
-            response = requests.get(url)
-            response.raise_for_status()
-            data = response.json()
-
-            # 天気情報を解析して、指定した class20_code に対応するエリアの天気を取得
-            weather_info = extract_weather_info(data, class20_code)
-            if weather_info:
-                print(f"取得した天気情報: {weather_info}")
-                return weather_info
-            else:
-                print("天気情報の解析に失敗しました。")
-                return None
-
-        except Exception as e:
-            print(f"天気データの取得に失敗しました。エラー: {e}")
+        # get_OpenWeatherMap.py の get_current_weather 関数を呼び出す
+        weather_info = get_OpenWeatherMap.get_current_weather(lat, lon, api_key)
+        if weather_info:
+            #print(f"取得した天気情報: {weather_info}")
+            return weather_info
+        else:
+            print("天気情報の取得に失敗しました。")
             return None
     except Exception as e:
         traceback.print_exc()  # エラーの詳細を表示
@@ -180,8 +161,9 @@ def get_weather_and_risk_data():
         data = request.get_json()
         lat = data['lat']
         lon = data['lon']
-        weather = get_weather(lat,lon)
-        print(f"緯度 {lat}、経度 {lon} の天気は: {weather} です。",flush=True)
+        weather_data = get_weather(lat,lon,api_key)
+        weather=weather_data['weather_type'] 
+        #print(f"緯度 {lat}、経度 {lon} の天気は: {weather} です。",flush=True)
         if not weather:
             return jsonify({'error': '天気データの取得に失敗しました'}), 500
 
@@ -200,13 +182,10 @@ def get_weather_and_risk_data():
 def get_risk_data():
     data = request.get_json()
     weather = data['weather']
-    hour = data['hour']
-    #day_night = data['day_night']
-    is_holiday = data['is_holiday']
-
-    # モデルに入力するためのデータを準備
-    # ここでは、地図の範囲内でグリッド状に緯度経度を生成します
-    # 例として、東京近辺の緯度経度を使用します
+    datetime_str = data['datetime']
+    lat = data['latitude']
+    lon = data['longitude']
+    prediction_duration = data['prediction_duration']
 
      # 緯度・経度の範囲を日本全体に設定
     lat_min = 24.0  # 日本の南端
@@ -214,11 +193,17 @@ def get_risk_data():
     lon_min = 123.0  # 日本の西端
     lon_max = 146.0  # 日本の東端
 
-    # ユーザーの指定した時間を現在の日付と組み合わせて datetime 型に変換
-    date_today = datetime.date.today()
-    date_time = datetime.datetime.combine(date_today, datetime.time(hour=hour))
-    date_time = jst.localize(date_time)
+    # datetime_str を datetime オブジェクトに変換
+    date_time = datetime.datetime.fromisoformat(datetime_str)
+    date_time = jst.localize(date_time)  # 日本時間に設定
 
+    # is_holiday をサーバー側で判定
+    is_holiday = int(jpholiday.is_holiday(date_time.date()))
+    
+    hour = date_time.hour
+    weekday = date_time.weekday()
+
+    
     # グリッドの間隔を設定（必要に応じて調整）
     num_points = 100  # 緯度・経度方向のポイント数
     lat_grid = np.linspace(lat_min, lat_max, num=num_points)
@@ -229,22 +214,19 @@ def get_risk_data():
         for lon in lon_grid:
             grid_points.append((lat, lon))
 
+    # 昼夜区分の計算
+    day_night = get_day_night_code(lat, lon, date_time)
+
     # 入力データフレームを作成
     input_data = pd.DataFrame(grid_points, columns=['latitude', 'longitude'])
     input_data['hour'] = hour
-    input_data['weekday'] = datetime.datetime.now().weekday()
+    input_data['weekday'] = weekday
     input_data['is_holiday'] = is_holiday
-    input_data['昼夜区分'] = day_night
     input_data['天候区分'] = weather
-
-     # 緯度・経度から昼夜区分を計算
-    day_night_list = []
-    for idx, row in input_data.iterrows():
-        lat = row['latitude']
-        lon = row['longitude']
-        day_night = get_day_night_code(lat, lon, date_time)
-        day_night_list.append(day_night)
-    input_data['昼夜区分'] = day_night_list
+    input_data['昼夜区分'] = day_night  
+    input_data['latitude'] = lat
+    input_data['longitude'] = lon
+    
 
     # カテゴリ変数のエンコード
     for column in ['昼夜区分', '天候区分']:
@@ -267,8 +249,12 @@ def get_risk_data():
 
     # 必要な情報を辞書形式で返す
     risk_data = high_risk_data[['latitude', 'longitude', 'risk_score']].to_dict(orient='records')
-
-    return jsonify({'riskData': risk_data})
+    
+    # 結果をクライアントに返す
+    return jsonify({
+        'riskData': risk_data
+        # その他のデータ
+    })
 
 if __name__ == '__main__':
     app.run(debug=True)

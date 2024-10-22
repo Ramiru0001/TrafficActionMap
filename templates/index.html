@@ -13,6 +13,10 @@
     <!-- 住所入力用のフォーム -->
     <input type="text" id="addressInput" placeholder="住所または地名を入力">
     <button onclick="geocodeAddress()">検索</button>
+
+    <!-- 住所表示エリアを追加 -->
+    <div id="addressDisplay">現在の住所: </div>
+
     <!-- 新しい条件選択フォーム -->
     <form id="risk-form">
         <label for="weather">天候：</label>
@@ -22,16 +26,26 @@
             <option value="雨">雨</option>
             <option value="霧">霧</option>
             <option value="雪">雪</option>
-            <option value="不明">不明</option>
-        </select><br><br>
+        </select><br>
 
-        <label for="hour">時間（0-23時）：</label>
-        <input type="number" id="hour" name="hour" min="0" max="23" value="12"><br><br>
-        <label for="is_holiday">祝日：</label>
-        <select id="is_holiday" name="is_holiday">
-            <option value="0">平日</option>
-            <option value="1">祝日</option>
-        </select><br><br>
+        <!-- 日付の入力 -->
+        <label for="date">日付：</label>
+        <input type="date" id="date" name="date"><br>
+
+        <!-- 時間の入力 -->
+        <label for="time">時間：</label>
+        <input type="time" id="time" name="time"><br>
+
+        <!-- 予測時間間隔の選択リストを追加 -->
+        <label for="prediction_duration">予測時間：</label>
+        <select id="prediction_duration" name="prediction_duration">
+            <option value="10">10分</option>
+            <option value="30">30分</option>
+            <option value="60">60分</option>
+        </select><br>
+
+        <!-- 祝日情報の表示 -->
+        <!-- <div id="holidayInfo">祝日判定中...</div><br> -->
 
         <button type="button" onclick="getRiskData()">リスクマップを表示</button>
     </form>
@@ -44,6 +58,33 @@
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <!-- JavaScriptファイルの読み込み -->
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    
+    <!-- デフォルト値を設定するためのスクリプト -->
+    <script>
+        // ページが読み込まれたときに実行
+        window.onload = function() {
+            // 現在の日付と時間を取得
+            var now = new Date();
 
+            // 日付入力欄に今日の日付を設定
+            var dateInput = document.getElementById('date');
+            var year = now.getFullYear();
+            var month = ('0' + (now.getMonth() + 1)).slice(-2);
+            var day = ('0' + now.getDate()).slice(-2);
+            dateInput.value = year + '-' + month + '-' + day;
+
+            // 時間入力欄に現在の時間を設定
+            var timeInput = document.getElementById('time');
+            var hours = ('0' + now.getHours()).slice(-2);
+            var minutes = ('0' + now.getMinutes()).slice(-2);
+            timeInput.value = hours + ':' + minutes;
+
+            // 祝日情報を更新
+            //checkHoliday();
+
+            // 日付入力欄の変更イベントリスナーを追加
+            //dateInput.addEventListener('change', checkHoliday);
+        };
+    </script>
 </body>
 </html>

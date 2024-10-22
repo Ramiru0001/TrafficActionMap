@@ -4,18 +4,82 @@
 var map = L.map('map').setView([35.0, 135.0], 5); // デフォルトの位置
 
 // タイルレイヤーの追加
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors'
-}).addTo(map);
+// L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+//     attribution: '© OpenStreetMap contributors'
+// }).addTo(map);
 
 // マーカーを保持する変数
 var marker;
 
-// 地図をクリックしたときのイベントリスナー
-map.on('click', function(e) {
-    var lat = e.latlng.lat;
-    var lon = e.latlng.lng;
+// 地図とマーカーを初期化
+initializeMap();
 
+// 地図の初期化と現在位置の取得を行う関数
+function initializeMap() {
+    // デフォルトの位置（東京駅の座標）
+    var defaultLat = 35.681236;
+    var defaultLon = 139.767125;
+
+    // Geolocation APIを使用して現在位置を取得
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(position) {
+            // 位置情報の取得に成功した場合
+            var lat = position.coords.latitude;
+            var lon = position.coords.longitude;
+
+            // 地図を現在位置に設定
+            map.setView([lat, lon], 15);
+
+            // マーカーを追加
+            addMarker(lat, lon);
+
+            // 住所を表示
+            displayAddress(lat, lon);
+
+            // 選択した位置の天気と危険情報を取得
+            getWeatherAndRiskData(lat, lon);
+
+        }, function(error) {
+            // 位置情報の取得に失敗した場合
+            console.error('Error Code: ' + error.code + ' - ' + error.message);
+
+            // デフォルト位置に地図を設定
+            map.setView([defaultLat, defaultLon], 12);
+
+            // マーカーを追加
+            addMarker(defaultLat, defaultLon);
+
+            // 住所を表示
+            displayAddress(defaultLat, defaultLon);
+
+            // 選択した位置の天気と危険情報を取得
+            getWeatherAndRiskData(defaultLat, defaultLon);
+        });
+    } else {
+        // Geolocation APIが使用できない場合
+        alert('このブラウザでは位置情報がサポートされていません。');
+
+        // デフォルト位置に地図を設定
+        map.setView([defaultLat, defaultLon], 12);
+
+        // マーカーを追加
+        addMarker(defaultLat, defaultLon);
+
+        // 住所を表示
+        displayAddress(defaultLat, defaultLon);
+
+        // 選択した位置の天気と危険情報を取得
+        getWeatherAndRiskData(defaultLat, defaultLon);
+    }
+
+    // タイルレイヤーの追加（地図を初期化した後に追加）
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+}
+
+// マーカーを追加する関数
+function addMarker(lat, lon) {
     // 既存のマーカーを削除
     if (marker) {
         map.removeLayer(marker);
@@ -26,40 +90,7 @@ map.on('click', function(e) {
 
     // マーカーのドラッグイベントを追加
     addMarkerDragEvent(marker);
-
-    // 選択した位置の天気と危険情報を取得
-    getWeatherAndRiskData(lat, lon);
-});
-
-fetch('/get_weather_and_risk_data', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ lat: lat, lon: lon })
-})
-.then(response => {
-    if (!response.ok) {
-        return response.json().then(errorData => {
-            throw new Error(errorData.error || 'サーバーエラーが発生しました');
-        });
-    }
-    return response.json();
-})
-.then(data => {
-    // 天気情報の表示
-    displayWeather(data.weather);
-
-    // 地図上に危険情報を表示
-    displayRiskDataOnMap(data.riskData);
-
-    // 現在地を更新
-    updateCurrentLocation(lat, lon);
-})
-.catch(error => {
-    alert('エラー: ' + error.message);
-});
-
+}
 
 // マーカーをドラッグしたときのイベントリスナーを追加する関数
 function addMarkerDragEvent(marker) {
@@ -67,8 +98,86 @@ function addMarkerDragEvent(marker) {
         var lat = e.target.getLatLng().lat;
         var lon = e.target.getLatLng().lng;
 
+        // 住所を更新
+        displayAddress(lat, lon);
+
         // 選択した位置の天気と危険情報を取得
         getWeatherAndRiskData(lat, lon);
+    });
+}
+
+// 地図をクリックしたときのイベントリスナー
+map.on('click', function(e) {
+    var lat = e.latlng.lat;
+    var lon = e.latlng.lng;
+
+    // マーカーを追加
+    addMarker(lat, lon);
+
+    // 住所を更新
+    displayAddress(lat, lon);
+
+    // 選択した位置の天気と危険情報を取得
+    getWeatherAndRiskData(lat, lon);
+});
+
+// 住所を表示する関数
+function displayAddress(lat, lon) {
+    // Nominatim APIを使用して逆ジオコーディング
+    var url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=' + lat + '&lon=' + lon + '&accept-language=ja';
+
+    fetch(url)
+    .then(response => response.json())
+    .then(data => {
+        if (data && data.address) {
+            var address = data.address;
+            var displayName = data.display_name;
+
+            // display_nameをカンマで分割して配列にする
+            var addressComponents = displayName.split(',');
+
+            // 前後の空白を削除
+            addressComponents = addressComponents.map(function(component) {
+                return component.trim();
+            });
+
+            // 最後の要素が国名の場合、それを除外
+            if (addressComponents[addressComponents.length - 1] === '日本') {
+                addressComponents.pop();
+            }
+
+            // 次に最後の要素が郵便番号の場合、それを除外
+            var postalCodePattern = /^\d{3}-\d{4}$/; // 郵便番号の正規表現パターン
+            if (postalCodePattern.test(addressComponents[addressComponents.length - 1])) {
+                addressComponents.pop();
+            }
+
+            // 残った要素を逆順（下から順）にする
+            addressComponents = addressComponents.reverse();
+
+            // 各要素からピリオドや不要な記号を除去（必要に応じて）
+            addressComponents = addressComponents.map(function(component) {
+                return component.replace('.', '',',');
+            });
+
+            // 住所要素の取得
+            var postcode = address.postcode || '';
+
+            // 住所の組み立て
+            var formattedAddress = '';
+            
+            if (postcode) formattedAddress += '〒' + postcode + ' ';
+            formattedAddress += addressComponents.join(' ');
+
+            document.getElementById('addressDisplay').innerText = '現在の住所: ' + formattedAddress;
+        } else {
+            document.getElementById('addressDisplay').innerText = '住所を取得できませんでした';
+        }
+
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        document.getElementById('addressDisplay').innerText = '住所の取得に失敗しました';
     });
 }
 
@@ -152,42 +261,32 @@ function getRiskPrediction(lat, lon, hour, weather, isHoliday, dayNight) {
 // });
 
 // 天気情報を表示する関数
-function displayWeather(weatherList) {
-    var weatherText = weatherList.join('、'); // リストをカンマで結合
-    document.getElementById('weatherInfo').innerText = '天気: ' + weatherText;
+function displayWeather(weatherInfo) {
+    var weatherSelect = document.getElementById('weather');
+    // 天気情報から選択肢を作成
+    // weatherInfo がオブジェクトの場合、その中の 'weather_type' や 'weather' を使用します
+    // ここでは、weatherInfo が文字列または配列である場合を考慮します
+    // 天気情報が文字列の場合
+    if (typeof weatherInfo === 'string') {
+        // 選択肢をループして一致するものを選択
+        for (var i = 0; i < weatherSelect.options.length; i++) {
+            if (weatherSelect.options[i].value === weatherInfo) {
+                weatherSelect.selectedIndex = i;
+                break;
+            }
+        }
+        console.log("weatherInfo=string");
+    }
+    // 天気情報が取得できない場合の処理（必要に応じて）
+    else {
+        var option = document.createElement('option');
+        option.value = '';
+        option.text = '天気情報を取得できませんでした';
+        weatherSelect.appendChild(option);
+        console.log("weatherInfo=")
+    }
 }
 
-
-// 住所から位置を取得する関数
-// function geocodeAddress() {
-//     var address = document.getElementById('addressInput').value;
-//     var geocoderUrl = 'https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(address);
-
-//     fetch(geocoderUrl)
-//         .then(response => response.json())
-//         .then(data => {
-//             if (data.length > 0) {
-//                 var lat = parseFloat(data[0].lat);
-//                 var lon = parseFloat(data[0].lon);
-
-//                 // 地図の中心を移動
-//                 map.setView([lat, lon], 13);
-
-//                 // 既存のマーカーを削除
-//                 if (marker) {
-//                     map.removeLayer(marker);
-//                 }
-
-//                 // 新しいマーカーを追加
-//                 marker = L.marker([lat, lon], { draggable: true }).addTo(map);
-
-//                 // 選択した位置の天気と危険情報を取得
-//                 getWeatherAndRiskData(lat, lon);
-//             } else {
-//                 alert('住所が見つかりませんでした。');
-//             }
-//         });
-// }
 
 // 地図の初期化
 var map = L.map('map').setView([35.681236, 139.767125], 12); // 東京駅を中心に設定
@@ -238,12 +337,11 @@ function getWeatherAndRiskData(lat, lon) {
 
         // 現在地を更新
         updateCurrentLocation(lat, lon);
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('天気データの取得に失敗しました。');
     });
-}
-
-// 天気情報を表示する関数
-function displayWeather(weather) {
-    document.getElementById('weatherInfo').innerText = '天気: ' + weather;
 }
 
 // 地図上に危険情報を表示する関数
@@ -256,12 +354,55 @@ function updateCurrentLocation(lat, lon) {
     // 必要に応じて現在地を保持
 }
 
+// 祝日情報を取得して表示する関数
+function checkHoliday() {
+    var dateInput = document.getElementById('date').value;
+    console.log('選択された日付:', dateInput); // デバッグ用のログ
+
+    fetch('/is_holiday', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: dateInput })
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(errorData => {
+                throw new Error(errorData.error || 'サーバーエラーが発生しました');
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        var holidayInfo = document.getElementById('holidayInfo');
+        if (data.is_holiday) {
+            holidayInfo.innerText = '選択された日は祝日です: ' + data.holiday_name;
+        } else {
+            holidayInfo.innerText = '選択された日は平日です';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        var holidayInfo = document.getElementById('holidayInfo');
+        holidayInfo.innerText = '祝日情報の取得に失敗しました: ' + error.message;
+    });
+}
+
+
 function getRiskData() {
     // フォームの値を取得
-    var weather = document.getElementById('weather').value;
-    var hour = parseInt(document.getElementById('hour').value);
-    var is_holiday = parseInt(document.getElementById('is_holiday').value);
+    var weatherSelect = document.getElementById('weather');
+    var weather = weatherSelect.value;
 
+    var dateInput = document.getElementById('date').value;
+    var timeInput = document.getElementById('time').value;
+
+    // 日付と時間を結合して datetime を作成
+    var datetime = dateInput + 'T' + timeInput; // ISO形式の日時文字列
+
+    // 予測時間間隔を取得
+    var durationSelect = document.getElementById('prediction_duration');
+    var prediction_duration = parseInt(durationSelect.value);
+    
     // 現在の地図の表示範囲を取得
     var bounds = map.getBounds();
     var lat_min = bounds.getSouthWest().lat;
@@ -272,13 +413,15 @@ function getRiskData() {
     // サーバーにデータを送信
     var requestData = {
         weather: weather,
+        datetime: datetime,
         hour: hour,
         day_night: day_night,
-        is_holiday: is_holiday,
+        //is_holiday: is_holiday,
         lat_min: lat_min,
         lat_max: lat_max,
         lon_min: lon_min,
-        lon_max: lon_max
+        lon_max: lon_max,
+        prediction_duration: prediction_duration
     };
 
     fetch('/get_risk_data', {
@@ -326,4 +469,33 @@ function displayRiskData(riskData) {
     });
 }
 
+// 住所検索機能
+function geocodeAddress() {
+    var address = document.getElementById('addressInput').value;
+    // ジオコーディングAPIを使用して住所を緯度経度に変換
+    fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(address) + '&accept-language=ja')
+    .then(response => response.json())
+    .then(data => {
+        if (data.length > 0) {
+            var lat = parseFloat(data[0].lat);
+            var lon = parseFloat(data[0].lon);
+            map.setView([lat, lon], 14);
+
+            // マーカーを追加
+            addMarker(lat, lon);
+
+            // 住所を更新
+            displayAddress(lat, lon);
+
+            // 選択した位置の天気と危険情報を取得
+            getWeatherAndRiskData(lat, lon);
+        } else {
+            alert('住所が見つかりませんでした。');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('住所の検索に失敗しました。');
+    });
+}
 
