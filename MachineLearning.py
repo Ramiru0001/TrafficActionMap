@@ -8,7 +8,19 @@ from datetime import datetime
 #import matplotlib.font_manager as fm
 #import matplotlib as mpl
 from sklearn.model_selection import train_test_split
+import geopandas as gpd
 
+# Natural Earthのシェープファイルのパス
+natural_earth_shp = 'ne_10m_admin_0_countries/ne_10m_admin_0_countries.shp'  # ダウンロードしたシェープファイルのパスに置き換えてください
+
+# シェープファイルを読み込む
+world = gpd.read_file(natural_earth_shp)
+
+# 日本のポリゴンを抽出
+japan = world[world['ADMIN'] == 'Japan']
+
+# CRSを確認・設定（WGS84: EPSG:4326）
+japan = japan.to_crs(epsg=4326)
 
 # # フォントのパスを指定（お使いの環境に合わせてください）
 # font_path = 'C:\\Users\\ramiru\\AppData\\Local\\Microsoft\\Windows\\Fonts\\SourceHanSans-Medium.otf'
@@ -119,31 +131,6 @@ def map_day_night(code):
 data['天候区分'] = data['天候'].apply(map_weather)
 data['昼夜区分'] = data['昼夜'].apply(map_day_night)
 
-# 地図の中心を設定
-# avg_lat = data['latitude'].mean()
-# avg_lon = data['longitude'].mean()
-# m = folium.Map(location=[avg_lat, avg_lon], zoom_start=10)
-
-# ヒートマップ用のデータを準備
-#heat_data = data[['latitude', 'longitude']].values.tolist()
-
-# ヒートマップを追加
-#HeatMap(heat_data, radius=8, blur=4, max_zoom=13).add_to(m)
-
-# # マーカーを追加（必要に応じて）
-# for index, row in data.iterrows():
-#     folium.CircleMarker(
-#         location=[row['latitude'], row['longitude']],
-#         radius=1,
-#         color='red',
-#         fill=True,
-#         fill_color='red',
-#         fill_opacity=0.6
-#     ).add_to(m)
-
-# 地図を保存
-#m.save('accident_heatmap.html')
-
 # 時間帯別の事故件数を集計
 hour_counts = data['hour'].value_counts().sort_index()
 
@@ -151,27 +138,73 @@ hour_counts = data['hour'].value_counts().sort_index()
 data['accident'] = 1
 
 # データの範囲を取得
-lat_min, lat_max = data['latitude'].min(), data['latitude'].max()
-lon_min, lon_max = data['longitude'].min(), data['longitude'].max()
+# lat_min, lat_max = data['latitude'].min(), data['latitude'].max()
+# lon_min, lon_max = data['longitude'].min(), data['longitude'].max()
 date_min, date_max = data['発生日時'].min(), data['発生日時'].max()
 
+# 日本の緯度経度の範囲（おおよそ）
+LAT_MIN, LAT_MAX = 24.396308, 45.551483
+LON_MIN, LON_MAX = 122.93457, 153.986672
+
+# グリッドサイズの設定（度単位）
+GRID_SIZE = 0.005  # 例: 約0.111kmごとのグリッド
+
+# グリッドポイントの生成
+lat_grid = np.arange(LAT_MIN, LAT_MAX, GRID_SIZE)
+lon_grid = np.arange(LON_MIN, LON_MAX, GRID_SIZE)
+grid_points = np.array(np.meshgrid(lat_grid, lon_grid)).T.reshape(-1, 2)
+print("グリッドポイントの生成")
+# Pandas DataFrameに変換
+grid_df = pd.DataFrame(grid_points, columns=['latitude', 'longitude'])
+print("Pandas DataFrameに変換")
+from shapely.geometry import Point
+# GeopandasのGeoDataFrameに変換
+geometry = [Point(xy) for xy in zip(grid_df['longitude'], grid_df['latitude'])]
+grid_gdf = gpd.GeoDataFrame(grid_df, geometry=geometry, crs='EPSG:4326')
+print("GeopandasのGeoDataFrameに変換")
+# 日本の陸地ポリゴンとポイントを空間結合
+# sjoinでは 'within' がデフォルト
+grid_within_japan = gpd.sjoin(grid_gdf, japan, how='left', predicate='within')
+print("日本の陸地ポリゴンとポイントを空間結合")
+# 'index_right' がNaNでないポイントは陸地上
+land_points = grid_within_japan[~grid_within_japan['index_right'].isna()].copy()
+sea_points = grid_within_japan[grid_within_japan['index_right'].isna()].copy()
+
+print(f"総グリッドポイント数: {len(grid_gdf)}")
+print(f"陸地上のグリッドポイント数: {len(land_points)}")
+print(f"海上のグリッドポイント数: {len(sea_points)}")
+
+# グリッドポイント数
+num_grid_points = land_points.shape[0]
+
+# 必要なサンプル数に応じて複製（例: 各ポイントあたり1サンプル）
+samples_per_point = 1
+total_neg_samples = num_grid_points * samples_per_point
+print("必要なサンプル数に応じて複製")
+# 発生日時をランダムに生成
+random_timestamps = pd.to_datetime(np.random.uniform(date_min.value, date_max.value, total_neg_samples))
+print("発生日時をランダムに生成")
 # ランダムにネガティブデータを生成
-num_samples = len(data)
+#num_samples = len(data)
 np.random.seed(42)
 
-neg_samples = pd.DataFrame({
-    'latitude': np.random.uniform(lat_min, lat_max, num_samples),
-    'longitude': np.random.uniform(lon_min, lon_max, num_samples),
-    '発生日時': pd.to_datetime(np.random.uniform(date_min.value, date_max.value, num_samples))
-})
+print(f"latitudeの長さ: {len(np.repeat(land_points.iloc[:, 0], samples_per_point))}")
+print(f"longitudeの長さ: {len(np.repeat(land_points.iloc[:, 1], samples_per_point))}")
+print(f"発生日時の長さ: {len(random_timestamps)}")
 
+neg_samples = pd.DataFrame({
+    'latitude': np.repeat(land_points.iloc[:, 0], samples_per_point),
+    'longitude': np.repeat(land_points.iloc[:, 1], samples_per_point),
+    '発生日時': random_timestamps
+})
+print("ランダムにネガティブデータを生成")
 # データから昼夜区分の分布を取得
 day_night_distribution = data['昼夜区分'].value_counts(normalize=True)
 
 # ネガティブデータに昼夜区分を割り当て
 neg_samples['昼夜区分'] = np.random.choice(
     day_night_distribution.index,
-    size=num_samples,
+    size=total_neg_samples,
     p=day_night_distribution.values
 )
 
@@ -181,7 +214,7 @@ weather_distribution = data['天候区分'].value_counts(normalize=True)
 # ネガティブデータに天候を割り当て
 neg_samples['天候区分'] = np.random.choice(
     weather_distribution.index,
-    size=num_samples,
+    size=total_neg_samples,
     p=weather_distribution.values
 )
 
@@ -197,7 +230,7 @@ neg_samples['is_holiday'] = neg_samples['発生日時'].apply(lambda x: jpholida
 neg_samples['accident'] = 0  # 事故が発生しなかったフラグ
 
 # 必要なカラムを選択
-features = ['latitude', 'longitude', 'hour', 'weekday', '昼夜区分', '天候区分', 'is_holiday']
+features = ['latitude', 'longitude', 'month', 'day', 'hour', 'minute','weekday', '昼夜区分', '天候区分', 'is_holiday']
 target = 'accident'  # 事故の有無（後述）
 
 # ポジティブデータの特徴量を選択
@@ -205,6 +238,20 @@ data_positive = data[features + [target]]
 
 # ネガティブデータの特徴量を選択
 neg_samples = neg_samples[features + [target]]
+
+# 重複を削除するために特徴量でマージ（左側がネガティブ、右側がポジティブ）
+merged = neg_samples.merge(
+    data_positive,
+    on=features,
+    how='left',
+    indicator=True
+)
+
+# 'left_only' はネガティブサンプルのみを意味する
+neg_samples_unique = merged[merged['_merge'] == 'left_only'].drop(columns=['_merge'])
+
+print(f"ネガティブサンプルの総数: {len(neg_samples)}")
+print(f"重複削除後のネガティブサンプル数: {len(neg_samples_unique)}")
 
 # データを結合
 data_ml = pd.concat([data_positive, neg_samples], ignore_index=True)
@@ -221,7 +268,7 @@ for column in ['昼夜区分', '天候区分']:
 # 'is_holiday'を数値に変換
 data_ml['is_holiday'] = data_ml['is_holiday'].astype(int)
 
-#2
+# 特徴量とターゲットの設定
 X = data_ml[features]
 y = data_ml[target]
 
@@ -249,7 +296,7 @@ print(confusion_matrix(y_test, y_pred))
 import joblib
 
 # モデルの保存
-joblib.dump(model, 'accident_risk_model.pkl')
+joblib.dump(model, 'accident_risk_model_date.pkl')
 
 # ラベルエンコーダーの保存
-joblib.dump(label_encoders, 'label_encoders.pkl')
+joblib.dump(label_encoders, 'label_encoders_date.pkl')

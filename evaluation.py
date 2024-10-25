@@ -107,11 +107,7 @@ data['昼夜区分'] = data['昼夜'].apply(map_day_night)
 # 事故発生フラグを追加
 data['accident'] = 1  # 事故が発生した
 
-# 必要なカラムを選択
-features = ['latitude', 'longitude', 'hour', 'weekday', '昼夜区分', '天候区分', 'is_holiday']
-target = 'accident'
 
-data_positive = data[features + [target]]
 
 # 3. ネガティブデータを生成（モデル訓練時と同じ方法）
 
@@ -120,14 +116,37 @@ lat_min, lat_max = data['latitude'].min(), data['latitude'].max()
 lon_min, lon_max = data['longitude'].min(), data['longitude'].max()
 date_min, date_max = data['発生日時'].min(), data['発生日時'].max()
 
+# グリッドベースのネガティブサンプリング
+# 日本の緯度経度の範囲（おおよそ）
+LAT_MIN, LAT_MAX = 24.396308, 45.551483
+LON_MIN, LON_MAX = 122.93457, 153.986672
+
+# グリッドサイズの設定（度単位）
+GRID_SIZE = 0.001  # 例: 約1kmごとのグリッド
+
+# グリッドポイントの生成
+lat_grid = np.arange(LAT_MIN, LAT_MAX, GRID_SIZE)
+lon_grid = np.arange(LON_MIN, LON_MAX, GRID_SIZE)
+grid_points = np.array(np.meshgrid(lat_grid, lon_grid)).T.reshape(-1, 2)
+
+# グリッドポイント数
+num_grid_points = grid_points.shape[0]
+
+# 必要なサンプル数に応じて複製（例: 各ポイントあたり1サンプル）
+samples_per_point = 5
+total_neg_samples = num_grid_points * samples_per_point
+
+# 発生日時をランダムに生成
+random_timestamps = pd.to_datetime(np.random.uniform(date_min.value, date_max.value, total_neg_samples))
+
 # ランダムにネガティブデータを生成
 num_samples = len(data)
 np.random.seed(42)
 
 neg_samples = pd.DataFrame({
-    'latitude': np.random.uniform(lat_min, lat_max, num_samples),
-    'longitude': np.random.uniform(lon_min, lon_max, num_samples),
-    '発生日時': pd.to_datetime(np.random.uniform(date_min.value, date_max.value, num_samples))
+    'latitude': np.repeat(grid_points[:, 0], samples_per_point),
+    'longitude': np.repeat(grid_points[:, 1], samples_per_point),
+    '発生日時': random_timestamps
 })
 
 # データから昼夜区分の分布を取得
@@ -161,16 +180,47 @@ neg_samples['is_holiday'] = neg_samples['発生日時'].apply(lambda x: jpholida
 
 neg_samples['accident'] = 0  # 事故が発生しなかったフラグ
 
-# ネガティブデータの特徴量を選択
-neg_samples = neg_samples[features + ['accident', 'month', '発生日時']]
+# 必要なカラムを選択
+features = ['latitude', 'longitude', 'month', 'day', 'hour', 'minute', 'weekday', '昼夜区分', '天候区分', 'is_holiday']
+target = 'accident'
+# ポジティブデータの特徴量を選択
+data_positive = data[features + [target]]
 
-# 4. データを結合
-data_ml = pd.concat([data_positive, neg_samples], ignore_index=True)
+# ネガティブデータの特徴量を選択
+neg_samples = neg_samples[features + [target]]
+
+# 重複を削除するために特徴量でマージ（左側がネガティブ、右側がポジティブ）
+merged = neg_samples.merge(
+    data_positive,
+    on=features,
+    how='left',
+    indicator=True
+)
+
+# 'left_only' はネガティブサンプルのみを意味する
+neg_samples_unique = merged[merged['_merge'] == 'left_only'].drop(columns=['_merge'])
+
+print(f"ネガティブサンプルの総数: {len(neg_samples)}")
+print(f"重複削除後のネガティブサンプル数: {len(neg_samples_unique)}")
+
+try:
+    # インデックスをリセット
+    data_positive_reset = data_positive.reset_index(drop=True)
+    neg_samples_reset = neg_samples.reset_index(drop=True)
+
+    # データフレームを連結
+    data_ml = pd.concat([data_positive_reset, neg_samples_reset], ignore_index=True)
+except pd.errors.InvalidIndexError as e:
+    print("インデックスに重複が存在するため、連結に失敗しました。インデックスをリセットしてください。")
+    print(e)
+except Exception as e:
+    print("データフレームの連結中に予期せぬエラーが発生しました。")
+    print(e)
 
 # 5. カテゴリ変数をエンコード（モデルと同じラベルエンコーダーを使用）
 
 # モデルで使用したラベルエンコーダーの読み込み
-label_encoders = joblib.load('label_encoders.pkl')
+label_encoders = joblib.load('label_encoders_date.pkl')
 
 for column in ['昼夜区分', '天候区分']:
     le = label_encoders[column]
@@ -184,7 +234,7 @@ X_test = data_ml[features]
 y_test = data_ml[target]
 
 # 7. モデルの読み込み
-model = joblib.load('accident_risk_model.pkl')
+model = joblib.load('accident_risk_model_date.pkl')
 
 # 8. 予測の実行
 y_pred = model.predict(X_test)

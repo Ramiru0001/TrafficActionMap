@@ -81,8 +81,8 @@ def get_current_weather(lat, lon, api_key):
 
 if __name__ == '__main__':
     # 例として東京駅の緯度・経度を使用
-    lat = 39.06273184897368
-    lon = 140.85242036818445
+    lat = 34.329506911402255
+    lon = 134.0367265314154
 
     # OpenWeatherMapのAPIキーをここに入力
     api_key = 'caff0feac5f8764f6a1f474405a4f99e'

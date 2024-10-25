@@ -192,73 +192,34 @@ function getWeatherCode(weatherText) {
     return weatherDict[weatherText] || 0;  // '0'は未知の天候
 }
 
-function getRiskPrediction(lat, lon, weatherText) {
-    var date = new Date();
-    var datetime = date.toISOString();  // ISO形式の日時文字列
+// function getRiskPrediction(lat, lon, hour, weather, isHoliday, dayNight) {
+//     // 現在の曜日を取得
+//     var date = new Date();
+//     var weekday = date.getDay(); // 0（日曜日）から6（土曜日）
 
-    var weatherCode = getWeatherCode(weatherText);
-
-    fetch('/predict_accident_risk', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            lat: lat,
-            lon: lon,
-            datetime: datetime,
-            weather: weatherCode
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        displayRiskOnMap(lat, lon, data.riskScore);
-    })
-    .catch(error => {
-        console.error('Error:', error);
-    });
-}
-
-
-function getRiskPrediction(lat, lon, hour, weather, isHoliday, dayNight) {
-    // 現在の曜日を取得
-    var date = new Date();
-    var weekday = date.getDay(); // 0（日曜日）から6（土曜日）
-
-    fetch('/predict_accident_risk', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            lat: lat,
-            lon: lon,
-            hour: hour,
-            weekday: weekday,
-            is_holiday: isHoliday,
-            day_night: dayNight,
-            weather: weather
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        displayRiskOnMap(lat, lon, data.riskScore);
-    })
-    .catch(error => {
-        console.error('Error:', error);
-    });
-}
-
-// マーカーをドラッグしたときのイベントリスナー
-// map.on('moveend', function() {
-//     if (marker) {
-//         var lat = marker.getLatLng().lat;
-//         var lon = marker.getLatLng().lng;
-
-//         // 選択した位置の天気と危険情報を取得
-//         getWeatherAndRiskData(lat, lon);
-//     }
-// });
+//     fetch('/predict_accident_risk', {
+//         method: 'POST',
+//         headers: {
+//             'Content-Type': 'application/json'
+//         },
+//         body: JSON.stringify({
+//             lat: lat,
+//             lon: lon,
+//             hour: hour,
+//             weekday: weekday,
+//             is_holiday: isHoliday,
+//             day_night: dayNight,
+//             weather: weather
+//         })
+//     })
+//     .then(response => response.json())
+//     .then(data => {
+//         displayRiskOnMap(lat, lon, data.riskScore);
+//     })
+//     .catch(error => {
+//         console.error('Error:', error);
+//     });
+// }
 
 // 天気情報を表示する関数
 function displayWeather(weatherInfo) {
@@ -289,33 +250,12 @@ function displayWeather(weatherInfo) {
 
 
 // 地図の初期化
-var map = L.map('map').setView([35.681236, 139.767125], 12); // 東京駅を中心に設定
+//var map = L.map('map').setView([35.681236, 139.767125], 12); // 東京駅を中心に設定
 
 // OpenStreetMapのタイルレイヤーを追加
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors'
 }).addTo(map);
-
-// 住所検索機能
-function geocodeAddress() {
-    var address = document.getElementById('addressInput').value;
-    // ジオコーディングAPIを使用して住所を緯度経度に変換
-    fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(address))
-    .then(response => response.json())
-    .then(data => {
-        if (data.length > 0) {
-            var lat = parseFloat(data[0].lat);
-            var lon = parseFloat(data[0].lon);
-            map.setView([lat, lon], 14);
-        } else {
-            alert('住所が見つかりませんでした。');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('住所の検索に失敗しました。');
-    });
-}
 
 
 // 天気と危険情報を取得する関数
@@ -402,26 +342,38 @@ function getRiskData() {
     // 予測時間間隔を取得
     var durationSelect = document.getElementById('prediction_duration');
     var prediction_duration = parseInt(durationSelect.value);
-    
-    // 現在の地図の表示範囲を取得
-    var bounds = map.getBounds();
-    var lat_min = bounds.getSouthWest().lat;
-    var lat_max = bounds.getNorthEast().lat;
-    var lon_min = bounds.getSouthWest().lng;
-    var lon_max = bounds.getNorthEast().lng;
+
+    // 半径予想範囲を取得
+    var prediction_radius;
+    if (radiusSelect.value === 'other') {
+        var radiusInput = document.getElementById('prediction_radius_input');
+        prediction_radius = parseInt(radiusInput.value);
+        if (isNaN(prediction_radius)) {
+            alert('半径予想範囲を正しく入力してください。');
+            return;
+        }
+    } else {
+        prediction_radius = parseInt(radiusSelect.value);
+    }
+
+    // 現在のマーカーの位置（緯度・経度）を取得
+    var lat, lon;
+    if (marker) {
+        lat = marker.getLatLng().lat;
+        lon = marker.getLatLng().lng;
+    } else {
+        alert('地図上にマーカーがありません。位置を選択してください。');
+        return;
+    }
 
     // サーバーにデータを送信
     var requestData = {
         weather: weather,
         datetime: datetime,
-        hour: hour,
-        day_night: day_night,
-        //is_holiday: is_holiday,
-        lat_min: lat_min,
-        lat_max: lat_max,
-        lon_min: lon_min,
-        lon_max: lon_max,
-        prediction_duration: prediction_duration
+        latitude: lat,
+        longitude: lon,
+        prediction_duration: prediction_duration,
+        prediction_radius:prediction_radius
     };
 
     fetch('/get_risk_data', {
@@ -431,7 +383,14 @@ function getRiskData() {
         },
         body: JSON.stringify(requestData)
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(errorData => {
+                throw new Error(errorData.error || 'サーバーエラーが発生しました');
+            });
+        }
+        return response.json();
+    })
     .then(data => {
         // リスクデータを地図に表示
         displayRiskData(data.riskData);
@@ -457,7 +416,15 @@ function displayRiskData(riskData) {
         var lon = point.longitude;
         var risk = point.risk_score;
 
-        var color = risk > 0.7 ? 'red' : 'orange';
+        // リスクスコアに応じてマーカーの色を決定
+        var color;
+        if (risk > 0.7) {
+            color = 'red';
+        } else if (risk > 0.4) {
+            color = 'orange';
+        } else {
+            color = 'yellow';
+        }
 
         var marker = L.circleMarker([lat, lon], {
             radius: 5,
@@ -499,3 +466,19 @@ function geocodeAddress() {
     });
 }
 
+// 半径予想範囲の表示切替関数
+function toggleRadiusInput() {
+    console.log("a")
+    var select = document.getElementById('prediction_radius');
+    var inputDiv = document.getElementById('radius_input_div');
+    //inputDiv.style.display = 'block';
+    if (select.value === 'other') {
+        inputDiv.style.display = 'block';
+    } else {
+        inputDiv.style.display = 'none';
+    }
+}
+
+
+// var durationSelect = document.getElementById('prediction_duration');
+//     var prediction_duration = parseInt(durationSelect.value);

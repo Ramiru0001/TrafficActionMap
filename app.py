@@ -20,29 +20,16 @@ import os  # 環境変数から API キーを取得するために追加
 # OpenWeatherMap用のモジュールをインポート
 import get_OpenWeatherMap
 import traceback
+import math
+import pytz
 
 app = Flask(__name__)
 # 環境変数から API キーを取得
 api_key = os.environ.get('OPENWEATHERMAP_API_KEY')
 
 # モデルとラベルエンコーダーの読み込み
-model = joblib.load('accident_risk_model.pkl')
-label_encoders = joblib.load('label_encoders.pkl')
-
-# 予測用の関数
-def predict_accident_risk(input_data):
-    # カテゴリ変数のエンコード
-    for column in ['昼夜区分', '天候区分']:
-        le = label_encoders[column]
-        input_data[column] = le.transform(input_data[column])
-    
-    # 予測確率の取得
-    accident_proba = model.predict_proba(input_data)[:, 1][0]
-    return accident_proba
-
-#日の出・日の入り時刻の前後1時間を計算します。
-#入力の日時date_timeがどの時間帯に属するかを判定し、対応する「昼夜」コードを返します。
-import pytz
+model = joblib.load('accident_risk_model_date.pkl')
+label_encoders = joblib.load('label_encoders_date.pkl')
 
 # 日本標準時のタイムゾーンを取得
 jst = pytz.timezone('Asia/Tokyo')
@@ -73,49 +60,6 @@ def get_day_night_code(lat, lon, date_time):
         return 23  # 夜－明
     else:
         return None  # 不明
-
-# エンドポイントの作成
-
-@app.route('/predict_accident_risk', methods=['POST'])
-def predict_accident_risk_endpoint():
-    data = request.get_json()
-    lat = data['lat']
-    lon = data['lon']
-    hour = data['hour']
-    datetime_str = data['datetime']  # クライアントから日時を取得
-    weekday = data['weekday']
-    is_holiday = data['is_holiday']
-    day_night = data['day_night']  # 昼夜区分
-    weather = data['weather']      # 天候区分
-
-    # 日時文字列をdatetime型に変換
-    date_time = pd.to_datetime(datetime_str)
-
-    # 祝日判定
-    is_holiday = int(jpholiday.is_holiday(date_time))
-
-    # 昼夜コードを計算
-    day_night_code = get_day_night_code(lat, lon, date_time)
-
-    if day_night_code is None:
-        return jsonify({'error': '昼夜コードの計算に失敗しました'}), 500
-    
-    input_data = pd.DataFrame({
-        'latitude': [lat],
-        'longitude': [lon],
-        'hour': [hour],
-        'weekday': [weekday],
-        'is_holiday': [is_holiday],
-        '昼夜区分': [day_night],
-        '天候区分': [weather]
-    })
-    # フィーチャーの順序を訓練時と一致させる
-    feature_columns = ['latitude', 'longitude', 'hour', 'weekday', 'is_holiday', '昼夜区分', '天候区分']
-    input_data = input_data[feature_columns]
-
-    risk_score = predict_accident_risk(input_data)
-
-    return jsonify({'riskScore': risk_score})
 
 def is_holiday():
     today = datetime.date.today()
@@ -150,6 +94,19 @@ def extract_weather_info(data, class20_code):
                     pass
     return None  # 該当する天気情報が見つからない場合
 
+def get_weather_code(weather):
+    if weather=="晴":
+        return 1
+    elif weather=="曇":
+        return 2
+    elif weather=="雨":
+        return 3
+    elif weather=="霧":
+        return 4
+    elif weather=="雪":
+        return 5
+    else:
+        return None  # 不明
 
 @app.route('/')
 def index():
@@ -176,22 +133,43 @@ def get_weather_and_risk_data():
         traceback.print_exc()  # スタックトレースをコンソールに出力
         return jsonify({'error': 'サーバーエラーが発生しました'}), 500
 
-# app.py の更新部分
-
 @app.route('/get_risk_data', methods=['POST'])
 def get_risk_data():
     data = request.get_json()
     weather = data['weather']
     datetime_str = data['datetime']
-    lat = data['latitude']
-    lon = data['longitude']
-    prediction_duration = data['prediction_duration']
+    latitude = data['latitude']
+    longitude = data['longitude']
+    prediction_duration = data['prediction_duration']#予想時間(分)
+    prediction_radius=data['prediction_radius']#予想半径(m)
 
-     # 緯度・経度の範囲を日本全体に設定
-    lat_min = 24.0  # 日本の南端
-    lat_max = 46.0  # 日本の北端
-    lon_min = 123.0  # 日本の西端
-    lon_max = 146.0  # 日本の東端
+    # 地球の半径を6371kmとする
+    radius_km = prediction_radius / 1000.0
+
+    # 緯度1度あたり約111km
+    lat_step = 0.00001  # 9桁の緯度
+    lon_step = 0.00001  # 10桁の経度（近似）
+
+    # 範囲内の緯度経度を生成
+    points = []
+    lat_min = latitude - radius_km / 111.0
+    lat_max = latitude + radius_km / 111.0
+    lon_min = longitude - radius_km / (111.0 * math.cos(math.radians(latitude)))
+    lon_max = longitude + radius_km / (111.0 * math.cos(math.radians(latitude)))
+
+    current_lat = lat_min
+    while current_lat <= lat_max:
+        current_lon = lon_min
+        while current_lon <= lon_max:
+            points.append({'latitude': round(current_lat, 9), 'longitude': round(current_lon, 10)})
+            current_lon += lon_step
+        current_lat += lat_step
+        
+    # 緯度・経度の範囲を日本全体に設定
+    # lat_min = 24.0  # 日本の南端
+    # lat_max = 46.0  # 日本の北端
+    # lon_min = 123.0  # 日本の西端
+    # lon_max = 146.0  # 日本の東端
 
     # datetime_str を datetime オブジェクトに変換
     date_time = datetime.datetime.fromisoformat(datetime_str)
@@ -200,34 +178,31 @@ def get_risk_data():
     # is_holiday をサーバー側で判定
     is_holiday = int(jpholiday.is_holiday(date_time.date()))
     
+    month = date_time.month
+    day = date_time.day
     hour = date_time.hour
+    minute = date_time.minute
     weekday = date_time.weekday()
 
-    
-    # グリッドの間隔を設定（必要に応じて調整）
-    num_points = 100  # 緯度・経度方向のポイント数
-    lat_grid = np.linspace(lat_min, lat_max, num=num_points)
-    lon_grid = np.linspace(lon_min, lon_max, num=num_points)
-
-    grid_points = []
-    for lat in lat_grid:
-        for lon in lon_grid:
-            grid_points.append((lat, lon))
-
     # 昼夜区分の計算
-    day_night = get_day_night_code(lat, lon, date_time)
+    day_night = get_day_night_code(latitude, longitude, date_time)
+    #天候区分の計算
+    weather=get_weather_code(weather)
 
-    # 入力データフレームを作成
-    input_data = pd.DataFrame(grid_points, columns=['latitude', 'longitude'])
-    input_data['hour'] = hour
-    input_data['weekday'] = weekday
-    input_data['is_holiday'] = is_holiday
-    input_data['天候区分'] = weather
-    input_data['昼夜区分'] = day_night  
-    input_data['latitude'] = lat
-    input_data['longitude'] = lon
+     # 入力データフレームを作成
+    input_data = pd.DataFrame({
+        'latitude': latitude,
+        'longitude': longitude,
+        'month': month,
+        'day': day,
+        'hour': hour,
+        'minute': minute,
+        'weekday': weekday,
+        'is_holiday': is_holiday,
+        '昼夜区分': day_night,
+        '天候区分': weather
+    }) 
     
-
     # カテゴリ変数のエンコード
     for column in ['昼夜区分', '天候区分']:
         le = label_encoders[column]
@@ -237,7 +212,7 @@ def get_risk_data():
     input_data['is_holiday'] = input_data['is_holiday'].astype(int)
 
     # フィーチャーの順序を訓練時と一致させる
-    feature_columns = ['latitude', 'longitude', 'hour', 'weekday', 'is_holiday', '昼夜区分', '天候区分']
+    feature_columns = ['latitude', 'longitude', 'month', 'day', 'hour', 'minute',  'weekday', '昼夜区分', '天候区分', 'is_holiday']
     input_data = input_data[feature_columns]
 
     # 事故リスクの予測
@@ -255,6 +230,11 @@ def get_risk_data():
         'riskData': risk_data
         # その他のデータ
     })
+
+def some_risk_prediction_function(lat, lon, weather, datetime):
+    # 実際のリスク予測ロジックを実装
+    # ダミーのリスクスコア
+    return 0.5
 
 if __name__ == '__main__':
     app.run(debug=True)
