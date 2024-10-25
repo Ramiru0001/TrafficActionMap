@@ -147,7 +147,7 @@ LAT_MIN, LAT_MAX = 24.396308, 45.551483
 LON_MIN, LON_MAX = 122.93457, 153.986672
 
 # グリッドサイズの設定（度単位）
-GRID_SIZE = 0.005  # 例: 約0.111kmごとのグリッド
+GRID_SIZE = 0.005  # 例: 約0.555kmごとのグリッド
 
 # グリッドポイントの生成
 lat_grid = np.arange(LAT_MIN, LAT_MAX, GRID_SIZE)
