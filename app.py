@@ -1,4 +1,6 @@
 # app.py
+import sys
+sys.path.append("C:\\Users\\shian\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages")
 import pandas as pd
 import folium
 from folium.plugins import HeatMap
@@ -15,7 +17,6 @@ import joblib
 from astral import LocationInfo
 from astral.sun import sun
 import numpy as np
-import pytz
 import os  # 環境変数から API キーを取得するために追加
 # OpenWeatherMap用のモジュールをインポート
 import get_OpenWeatherMap
