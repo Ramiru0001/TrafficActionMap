@@ -362,23 +362,36 @@ for idx, row in japan_grids.iterrows():
         
         # メモリ使用量をチェック
         check_memory_usage(max_memory_usage_mb)
-        
+    
+        # マージ用の特徴量を指定（'accident' 列を除く）
+        merge_features = features.copy()
+
         # 重複を削除するために特徴量でマージ（左側がネガティブ、右側がポジティブ）
         merged = neg_samples.merge(
-            area_positive,
-            on=features,
+            area_positive[merge_features],
+            on=merge_features,
             how='left',
             indicator=True
         )
 
         # 'left_only' はネガティブサンプルのみを意味する
         neg_samples_unique = merged[merged['_merge'] == 'left_only'].drop(columns=['_merge'])
+        
+        # 必要な列を再度追加（'accident' 列を0で設定）
+        neg_samples_unique['accident'] = 0
 
+        print(f"ポジティブサンプルの総数: {len(area_positive)}")
         print(f"ネガティブサンプルの総数: {len(neg_samples)}")
         print(f"重複削除後のネガティブサンプル数: {len(neg_samples_unique)}")
 
         # データを結合
         area_data = pd.concat([area_positive, neg_samples_unique], ignore_index=True)
+        
+        # 'accident' 列に欠損値がないことを確認
+        if area_data['accident'].isnull().any():
+            print(f"警告: 'accident' 列に欠損値が含まれています。欠損値を0で埋めます。:{area_data.isnull().sum()}")
+            area_data['accident'] = area_data['accident'].fillna(0)
+
     except MemoryError as me:
         print(f"メモリエラーが発生しました: {me}")
         print("処理を中断します。")
@@ -420,10 +433,11 @@ for idx, row in japan_grids.iterrows():
         # モデルの保存
         model_filename = f'accident_risk_model_area_{area_id}.pkl'
         joblib.dump(model, model_filename)
-        
+        print(f"エリア{area_id}モデルの作成に成功しました。")
         # ラベルエンコーダーの保存
         encoder_filename = f'label_encoders_area_{area_id}.pkl'
         joblib.dump(label_encoders, encoder_filename)
+        print(f"エリア{area_id}モデルのラベルエンコーダーの作成に成功しました。")
 
         # メモリ解放
         del area_data, X, y, X_train, X_test, y_train, y_test, y_pred, model

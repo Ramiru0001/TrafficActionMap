@@ -1,6 +1,16 @@
-echo on
+echo off
+
+rem 現在日付
+echo %date%
+rem 現在時刻
+echo %time%
 
 py MachineLearning.py 
+
+rem 現在日付
+echo %date%
+rem 現在時刻
+echo %time%
 
 F:\TrafficActionMap\chime\1.mp3
 
