@@ -110,7 +110,6 @@ function addMarkerDragEvent(marker) {
 map.on('click', function(e) {
     var lat = e.latlng.lat;
     var lon = e.latlng.lng;
-
     // マーカーを追加
     addMarker(lat, lon);
 
@@ -181,16 +180,16 @@ function displayAddress(lat, lon) {
     });
 }
 
-function getWeatherCode(weatherText) {
-    const weatherDict = {
-        '晴れ': 1,
-        '曇り': 2,
-        '雨': 3,
-        '霧': 4,
-        '雪': 5
-    };
-    return weatherDict[weatherText] || 0;  // '0'は未知の天候
-}
+// function getWeatherCode(weatherText) {
+//     const weatherDict = {
+//         '晴れ': 1,
+//         '曇り': 2,
+//         '雨': 3,
+//         '霧': 4,
+//         '雪': 5
+//     };
+//     return weatherDict[weatherText] || 0;  // '0'は未知の天候
+// }
 
 // function getRiskPrediction(lat, lon, hour, weather, isHoliday, dayNight) {
 //     // 現在の曜日を取得
@@ -223,6 +222,7 @@ function getWeatherCode(weatherText) {
 
 // 天気情報を表示する関数
 function displayWeather(weatherInfo) {
+    //alert("天気更新")
     var weatherSelect = document.getElementById('weather');
     // 天気情報から選択肢を作成
     // weatherInfo がオブジェクトの場合、その中の 'weather_type' や 'weather' を使用します
@@ -243,7 +243,7 @@ function displayWeather(weatherInfo) {
         var option = document.createElement('option');
         option.value = '';
         option.text = '天気情報を取得できませんでした';
-        weatherSelect.appendChild(option);
+        //weatherSelect.appendChild(option);
         console.log("weatherInfo=")
     }
 }
@@ -260,6 +260,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 // 天気と危険情報を取得する関数
 function getWeatherAndRiskData(lat, lon) {
+    //alert('getWeatherAndRiskDataが呼ばれた');
     fetch('/get_weather_and_risk_data', {
         method: 'POST',
         headers: {
@@ -269,6 +270,7 @@ function getWeatherAndRiskData(lat, lon) {
     })
     .then(response => response.json())
     .then(data => {
+        //alert(data.weather,data.riskData)
         // 天気情報の表示
         displayWeather(data.weather);
 
@@ -295,37 +297,37 @@ function updateCurrentLocation(lat, lon) {
 }
 
 // 祝日情報を取得して表示する関数
-function checkHoliday() {
-    var dateInput = document.getElementById('date').value;
-    console.log('選択された日付:', dateInput); // デバッグ用のログ
+// function checkHoliday() {
+//     var dateInput = document.getElementById('date').value;
+//     console.log('選択された日付:', dateInput); // デバッグ用のログ
 
-    fetch('/is_holiday', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: dateInput })
-    })
-    .then(response => {
-        if (!response.ok) {
-            return response.json().then(errorData => {
-                throw new Error(errorData.error || 'サーバーエラーが発生しました');
-            });
-        }
-        return response.json();
-    })
-    .then(data => {
-        var holidayInfo = document.getElementById('holidayInfo');
-        if (data.is_holiday) {
-            holidayInfo.innerText = '選択された日は祝日です: ' + data.holiday_name;
-        } else {
-            holidayInfo.innerText = '選択された日は平日です';
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        var holidayInfo = document.getElementById('holidayInfo');
-        holidayInfo.innerText = '祝日情報の取得に失敗しました: ' + error.message;
-    });
-}
+//     fetch('/is_holiday', {
+//         method: 'POST',
+//         headers: { 'Content-Type': 'application/json' },
+//         body: JSON.stringify({ date: dateInput })
+//     })
+//     .then(response => {
+//         if (!response.ok) {
+//             return response.json().then(errorData => {
+//                 throw new Error(errorData.error || 'サーバーエラーが発生しました');
+//             });
+//         }
+//         return response.json();
+//     })
+//     .then(data => {
+//         var holidayInfo = document.getElementById('holidayInfo');
+//         if (data.is_holiday) {
+//             holidayInfo.innerText = '選択された日は祝日です: ' + data.holiday_name;
+//         } else {
+//             holidayInfo.innerText = '選択された日は平日です';
+//         }
+//     })
+//     .catch(error => {
+//         console.error('Error:', error);
+//         var holidayInfo = document.getElementById('holidayInfo');
+//         holidayInfo.innerText = '祝日情報の取得に失敗しました: ' + error.message;
+//     });
+// }
 
 
 function getRiskData() {
@@ -468,7 +470,7 @@ function geocodeAddress() {
 
 // 半径予想範囲の表示切替関数
 function toggleRadiusInput() {
-    console.log("a")
+    //console.log("a")
     var select = document.getElementById('prediction_radius');
     var inputDiv = document.getElementById('radius_input_div');
     //inputDiv.style.display = 'block';
@@ -479,6 +481,38 @@ function toggleRadiusInput() {
     }
 }
 
+function resetall(){
+    // 現在の日付と時間を取得
+    //alert("resetall")
+    var now = new Date();
+
+    // 日付入力欄に今日の日付を設定
+    var dateInput = document.getElementById('date').value;
+    var year = now.getFullYear();
+    var month = ('0' + (now.getMonth() + 1)).slice(-2);
+    var day = ('0' + now.getDate()).slice(-2);
+    dateInput = year + '-' + month + '-' + day;
+    document.getElementById('date').value=dateInput;
+
+    // 時間入力欄に現在の時間を設定
+    var timeInput = document.getElementById('time').value;
+    var hours = ('0' + now.getHours()).slice(-2);
+    var minutes = ('0' + now.getMinutes()).slice(-2);
+    timeInput = hours + ':' + minutes;
+    document.getElementById('time').value=timeInput;
+    //マーカーから現在の位置情報を取得
+    var lat, lon;
+    if (marker) {
+        lat = marker.getLatLng().lat;
+        lon = marker.getLatLng().lng;
+    } else {
+        alert('地図上にマーカーがありません。位置を選択してください。');
+        return;
+    }
+    // 選択した位置の天気と危険情報を取得
+    getWeatherAndRiskData(lat,lon);
+
+}
 
 // var durationSelect = document.getElementById('prediction_duration');
 //     var prediction_duration = parseInt(durationSelect.value);

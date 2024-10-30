@@ -250,6 +250,11 @@ try:
 
         # その他の情報を追加
         neg_gdf['weekday'] = neg_gdf['発生日時'].dt.weekday
+        neg_gdf['year'] = neg_gdf['発生日時'].dt.year
+        neg_gdf['month'] = neg_gdf['発生日時'].dt.month
+        neg_gdf['day'] = neg_gdf['発生日時'].dt.day
+        neg_gdf['hour'] = neg_gdf['発生日時'].dt.hour
+        neg_gdf['minute'] = neg_gdf['発生日時'].dt.minute
         neg_gdf['is_holiday'] = neg_gdf['発生日時'].apply(lambda x: jpholiday.is_holiday(x))
         neg_gdf['accident'] = 0  # ネガティブデータ
         neg_gdf['road_shape'] = road_shape

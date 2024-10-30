@@ -136,15 +136,22 @@ def get_weather_and_risk_data():
         #print(f"緯度 {lat}、経度 {lon} の天気は: {weather} です。",flush=True)
         if not weather:
             return jsonify({'error': '天気データの取得に失敗しました'}), 500
-        # if weather=="曇" or weather=="晴" or weather=="雨":
-        if amedas_data["precipitation1h"] or amedas_data["precipitation10m"]:
-            if amedas_data["precipitation1h"][0]>0 or amedas_data["precipitation10m"]>0:
-                weather="雨"
-        elif weather=="雨":
-            weather="晴"
-#編集中
-        risk_data = []
+        #1アメダスで、10分、もしくは1時間以内に雨が少しでも降っていたら雨
+        if (amedas_data["precipitation1h"] or amedas_data["precipitation10m"]) and (amedas_data["precipitation1h"][0]>0 or amedas_data["precipitation10m"][0]>0):
+            weather="雨"
+        elif weather_data['weather_id'] // 100 == 6:
+            weather = '雪'
 
+        elif weather_data['visibility'] <=200:
+            weather = '霧'
+
+        elif weather_data['cloudiness']>=80:
+            weather = '曇'
+        else:
+            weather = '晴'
+        
+        risk_data = []
+        print(weather)
         return jsonify({'weather': weather, 'riskData': risk_data})
     except Exception as e:
         traceback.print_exc()  # スタックトレースをコンソールに出力
