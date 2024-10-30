@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 import geopandas as gpd
 from shapely.geometry import Point
 from pyproj import CRS
+from astral import LocationInfo
+from astral.sun import sun
 
 # フォントのパスを指定（お使いの環境に合わせてください）
 font_path = 'C:\\Users\\ramiru\\AppData\\Local\\Microsoft\\Windows\\Fonts\\SourceHanSans-Medium.otf'
@@ -52,6 +54,34 @@ def dms_str_to_dd(dms_str):
     seconds = seconds + fraction
     dd = degrees + minutes / 60 + seconds / 3600
     return dd
+
+
+def get_day_night_code(lat, lon, date_time):
+    location = LocationInfo(latitude=lat, longitude=lon, timezone='Asia/Tokyo')
+    s = sun(location.observer, date=date_time.date(), tzinfo=jst)
+    sunrise = s['sunrise']
+    sunset = s['sunset']
+    
+    # 日の出・日の入り時刻の前後1時間を計算
+    sunrise_minus_1h = sunrise - pd.Timedelta(hours=1)
+    sunrise_plus_1h = sunrise + pd.Timedelta(hours=1)
+    sunset_minus_1h = sunset - pd.Timedelta(hours=1)
+    sunset_plus_1h = sunset + pd.Timedelta(hours=1)
+
+    if sunrise <= date_time < sunrise_plus_1h:
+        return 11  # 昼－明
+    elif sunrise_plus_1h <= date_time < sunset_minus_1h:
+        return 12  # 昼－昼
+    elif sunset_minus_1h <= date_time < sunset:
+        return 13  # 昼－暮
+    elif sunset <= date_time < sunset_plus_1h:
+        return 21  # 夜－暮
+    elif sunset_plus_1h <= date_time or date_time < sunrise_minus_1h:
+        return 22  # 夜－夜
+    elif sunrise_minus_1h <= date_time < sunrise:
+        return 23  # 夜－明
+    else:
+        return None  # 不明
 
 # 緯度・経度の変換
 data['latitude'] = data['地点　緯度（北緯）'].apply(dms_str_to_dd)
@@ -112,10 +142,44 @@ data['昼夜区分'] = data['昼夜'].apply(map_day_night)
 # 事故発生フラグを追加
 data['accident'] = 1  # 事故が発生した
 
+# ポジティブデータのGeoDataFrameを作成
+data_positive_gdf = gpd.GeoDataFrame(
+    data,
+    geometry=gpd.points_from_xy(data['longitude'], data['latitude']),
+    crs='EPSG:4326'
+)
+
 # 2. クラスターの読み込み
 cluster_polygons_gdf = gpd.read_file('cluster_polygons.geojson')
-aeqd_crs = CRS(proj='aeqd', lat_0=35, lon_0=136, datum='WGS84', units='m')
-# for lat,lon in data['latitude','longitude']:
+
+# 4. 事故データにクラスター情報を割り当てる
+# 投影座標系への変換（クラスターポリゴンと一致させるため）
+aeqd_crs = CRS.from_proj4("+proj=aeqd +lat_0=35 +lon_0=136 +datum=WGS84 +units=m +no_defs")
+data_positive_gdf = data_positive_gdf.to_crs(aeqd_crs)
+cluster_polygons_gdf = cluster_polygons_gdf.to_crs(aeqd_crs)
+
+# 空のリストを作成
+assigned_data_list = []
+
+# 各事故地点に対してクラスターポリゴンを検索
+for idx, accident_point in data_positive_gdf.iterrows():
+    point = accident_point.geometry
+    road_shape = accident_point['road_shape']
+    possible_clusters = cluster_polygons_gdf[cluster_polygons_gdf['road_shape'] == road_shape]
+    found = False
+    for _, cluster_row in possible_clusters.iterrows():
+        if cluster_row['geometry'].contains(point):
+            accident_point['cluster'] = cluster_row['cluster']
+            assigned_data_list.append(accident_point)
+            found = True
+            break
+    if not found:
+        # 該当するクラスターポリゴンがない場合でもデータを保持
+        accident_point['cluster'] = -1  # クラスタが見つからない場合は -1 を設定
+        assigned_data_list.append(accident_point)
+
+# クラスタ情報を持つ事故データのGeoDataFrameを作成
+assigned_data_gdf = gpd.GeoDataFrame(assigned_data_list, crs=aeqd_crs)
 
 # # 新しい地点の情報
 # new_longitude = 136.0  # 例
@@ -134,8 +198,7 @@ aeqd_crs = CRS(proj='aeqd', lat_0=35, lon_0=136, datum='WGS84', units='m')
 
 
 
-# 3. ネガティブデータを生成（モデル訓練時と同じ方法）
-
+# 5. ネガティブデータを生成（モデル訓練時と同じ方法）
 # 全体の分布から昼夜区分と天候区分の確率を取得
 day_night_distribution = data['昼夜区分'].value_counts(normalize=True)
 weather_distribution = data['天候区分'].value_counts(normalize=True)
@@ -149,9 +212,9 @@ date_max_timestamp = date_max.value / 1e9
 negative_samples_list = []
 
 # 各クラスターごとにネガティブデータを生成
-for (road_shape, cluster_label), group in cluster_polygons_gdf.groupby(['road_shape', 'cluster']):
-    # クラスター内の事故地点を取得
-    accident_points = group['geometry'].values
+for (road_shape, cluster_label), group in assigned_data_gdf.groupby(['road_shape', 'cluster']):
+    if cluster_label == -1:
+        continue  # クラスタが見つからなかったデータはスキップ
 
     # クラスターのジオメトリを取得
     cluster_polygon = cluster_polygons_gdf[
@@ -169,7 +232,7 @@ for (road_shape, cluster_label), group in cluster_polygons_gdf.groupby(['road_sh
 
     while len(negative_points) < num_neg_samples and attempts < max_attempts:
         random_point = Point(np.random.uniform(minx, maxx), np.random.uniform(miny, maxy))
-        if cluster_polygon.contains(random_point) and not any(random_point.equals(p) for p in accident_points):
+        if cluster_polygon.contains(random_point) :
             negative_points.append(random_point)
         attempts += 1
 
@@ -190,12 +253,9 @@ for (road_shape, cluster_label), group in cluster_polygons_gdf.groupby(['road_sh
     random_timestamps = np.random.uniform(date_min_timestamp, date_max_timestamp, len(neg_gdf))
     neg_gdf['発生日時'] = pd.to_datetime(random_timestamps, unit='s')
 
-    # 昼夜区分と天候区分を全体の分布に基づいて割り当て
-    neg_gdf['昼夜区分'] = np.random.choice(
-        day_night_distribution.index,
-        size=len(neg_gdf),
-        p=day_night_distribution.values
-    )
+    
+    neg_gdf['昼夜区分'] = get_day_night_code(neg_gdf['latitude'], neg_gdf['longitude'], data['発生日時'])
+    # 天候区分を全体の分布に基づいて割り当て
     neg_gdf['天候区分'] = np.random.choice(
         weather_distribution.index,
         size=len(neg_gdf),
@@ -218,10 +278,6 @@ for (road_shape, cluster_label), group in cluster_polygons_gdf.groupby(['road_sh
     # 全てのネガティブデータを結合
     negative_data = pd.concat(negative_samples_list, ignore_index=True)
 
-    # 座標系を元に戻す（WGS84）
-    cluster_polygons_gdf = cluster_polygons_gdf.to_crs('EPSG:4326')
-    negative_data = negative_data.to_crs('EPSG:4326')
-
     # 必要なカラムを選択
     features = ['latitude', 'longitude', 'month', 'day', 'hour', 'minute', 'weekday', '昼夜区分', '天候区分', 'is_holiday','road_shape']
     target = 'accident'
@@ -232,7 +288,11 @@ try:
     neg_samples_reset = negative_data.reset_index(drop=True)
 
     # データフレームを連結
-    data_ml = pd.concat([data_positive_reset, neg_samples_reset], ignore_index=True)
+    data_ml = pd.concat([assigned_data_gdf, negative_data], ignore_index=True)
+
+    # 7. 座標系を元に戻す（WGS84）
+    data_ml = data_ml.to_crs('EPSG:4326')
+
 except pd.errors.InvalidIndexError as e:
     print("インデックスに重複が存在するため、連結に失敗しました。インデックスをリセットしてください。")
     print(e)
@@ -240,18 +300,17 @@ except Exception as e:
     print("データフレームの連結中に予期せぬエラーが発生しました。")
     print(e)
 
-# 5. カテゴリ変数をエンコード（モデルと同じラベルエンコーダーを使用）
+# 'is_holiday'を数値に変換
+data_ml['is_holiday'] = data_ml['is_holiday'].astype(int)
 
+
+# 9. カテゴリ変数をエンコード（モデルと同じラベルエンコーダーを使用）
 # モデルで使用したラベルエンコーダーの読み込み
 label_encoders = joblib.load('label_encoders_date.pkl')
 
 for column in ['昼夜区分', '天候区分','road_shape']:
     le = label_encoders[column]
     data_ml[column] = le.transform(data_ml[column])
-
-
-# 'is_holiday'を数値に変換
-data_ml['is_holiday'] = data_ml['is_holiday'].astype(int)
 
 # 6. 特徴量とターゲットを分割
 X_test = data_ml[features]

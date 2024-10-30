@@ -331,6 +331,8 @@ function updateCurrentLocation(lat, lon) {
 
 
 function getRiskData() {
+    //編集中
+    alert("getRiskData2")
     // フォームの値を取得
     var weatherSelect = document.getElementById('weather');
     var weather = weatherSelect.value;
@@ -344,7 +346,7 @@ function getRiskData() {
     // 予測時間間隔を取得
     var durationSelect = document.getElementById('prediction_duration');
     var prediction_duration = parseInt(durationSelect.value);
-
+    alert("getRiskData3")
     // 半径予想範囲を取得
     var prediction_radius;
     if (radiusSelect.value === 'other') {
@@ -354,10 +356,12 @@ function getRiskData() {
             alert('半径予想範囲を正しく入力してください。');
             return;
         }
+        alert("getRiskData3.5")
     } else {
         prediction_radius = parseInt(radiusSelect.value);
+        alert("getRiskData3.8")
     }
-
+    alert("getRiskData4")
     // 現在のマーカーの位置（緯度・経度）を取得
     var lat, lon;
     if (marker) {
@@ -377,7 +381,7 @@ function getRiskData() {
         prediction_duration: prediction_duration,
         prediction_radius:prediction_radius
     };
-
+    alert("getRiskData5")
     fetch('/get_risk_data', {
         method: 'POST',
         headers: {
@@ -396,6 +400,7 @@ function getRiskData() {
     .then(data => {
         // リスクデータを地図に表示
         displayRiskData(data.riskData);
+        alert(data.riskData)
     })
     .catch(error => {
         console.error('Error:', error);

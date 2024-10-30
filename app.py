@@ -24,6 +24,9 @@ import get_amedas_weather
 import traceback
 import math
 import pytz
+from pyproj import CRS
+import geopandas as gpd
+from shapely.geometry import Point
 
 app = Flask(__name__)
 app.logger.debug('DEBUG')
@@ -160,48 +163,23 @@ def get_weather_and_risk_data():
 @app.route('/get_risk_data', methods=['POST'])
 def get_risk_data():
     data = request.get_json()
-    weather = data['weather']
+    weather_str = data['weather']
     datetime_str = data['datetime']
     latitude = data['latitude']
     longitude = data['longitude']
     prediction_duration = data['prediction_duration']#予想時間(分)
     prediction_radius=data['prediction_radius']#予想半径(m)
 
-    # 地球の半径を6371kmとする
-    radius_km = prediction_radius / 1000.0
-
-    # 緯度1度あたり約111km
-    lat_step = 0.00001  # 9桁の緯度
-    lon_step = 0.00001  # 10桁の経度（近似）
-
-    # 範囲内の緯度経度を生成
-    points = []
-    lat_min = latitude - radius_km / 111.0
-    lat_max = latitude + radius_km / 111.0
-    lon_min = longitude - radius_km / (111.0 * math.cos(math.radians(latitude)))
-    lon_max = longitude + radius_km / (111.0 * math.cos(math.radians(latitude)))
-
-    current_lat = lat_min
-    while current_lat <= lat_max:
-        current_lon = lon_min
-        while current_lon <= lon_max:
-            points.append({'latitude': round(current_lat, 9), 'longitude': round(current_lon, 10)})
-            current_lon += lon_step
-        current_lat += lat_step
-        
-    # 緯度・経度の範囲を日本全体に設定
-    # lat_min = 24.0  # 日本の南端
-    # lat_max = 46.0  # 日本の北端
-    # lon_min = 123.0  # 日本の西端
-    # lon_max = 146.0  # 日本の東端
-
     # datetime_str を datetime オブジェクトに変換
     date_time = datetime.datetime.fromisoformat(datetime_str)
     date_time = jst.localize(date_time)  # 日本時間に設定
 
+    # 予測する時間範囲を計算
+    end_time = date_time + datetime.timedelta(minutes=prediction_duration)
+
     # is_holiday をサーバー側で判定
     is_holiday = int(jpholiday.is_holiday(date_time.date()))
-    
+
     month = date_time.month
     day = date_time.day
     hour = date_time.hour
@@ -210,49 +188,93 @@ def get_risk_data():
 
     # 昼夜区分の計算
     day_night = get_day_night_code(latitude, longitude, date_time)
-    #天候区分の計算
-    weather=get_weather_code(weather)
+    # 天候区分の計算
+    weather_code = get_weather_code(weather_str)
 
-     # 入力データフレームを作成
-    input_data = pd.DataFrame({
-        'latitude': latitude,
-        'longitude': longitude,
-        'month': month,
-        'day': day,
-        'hour': hour,
-        'minute': minute,
-        'weekday': weekday,
-        'is_holiday': is_holiday,
-        '昼夜区分': day_night,
-        '天候区分': weather
-    }) 
+    # クラスターの読み込み
+    cluster_polygons_gdf = gpd.read_file('cluster_polygons.geojson')
+    cluster_polygons_gdf = cluster_polygons_gdf.to_crs(epsg=4326)  # WGS84 座標系に変換
+
+    # ユーザーの位置から指定された半径内のクラスターを取得
+    user_location = Point(longitude, latitude)
+    buffer_radius = prediction_radius / 1000  # メートルをキロメートルに変換
+
+    # ユーザーの位置をバッファリングして範囲を作成
+    user_location_gdf = gpd.GeoDataFrame(geometry=[user_location], crs='EPSG:4326')
+    user_location_buffer = user_location_gdf.to_crs(epsg=3857).buffer(prediction_radius).to_crs(epsg=4326).unary_all()
+
+    # 範囲内のクラスターを取得
+    clusters_in_area = cluster_polygons_gdf[cluster_polygons_gdf.intersects(user_location_buffer)]
+
+    if clusters_in_area.empty:
+        return jsonify({'riskData': [], 'message': '指定された範囲内にクラスターが存在しません。'})
+
+    # 時間範囲内の時間を一定間隔で生成（例: 10分間隔）
+    time_intervals = pd.date_range(start=date_time, end=end_time, freq='1T', tz=jst)
+
+    # 入力データを作成
+    input_data_list = []
+
+    for idx, cluster_row in clusters_in_area.iterrows():
+        cluster_centroid = cluster_row['geometry'].centroid
+        cluster_lat = cluster_centroid.y
+        cluster_lon = cluster_centroid.x
+        road_shape = cluster_row['road_shape']
+
+        for current_time in time_intervals:
+            # 特徴量を計算
+            is_holiday = int(jpholiday.is_holiday(current_time.date()))
+            month = current_time.month
+            day = current_time.day
+            hour = current_time.hour
+            minute = current_time.minute
+            weekday = current_time.weekday()
+            day_night = get_day_night_code(cluster_lat, cluster_lon, current_time)
+
+            # 特徴量の辞書を作成
+            input_data = pd.DataFrame({
+                'latitude': cluster_lat,
+                'longitude': cluster_lon,
+                'month': month,
+                'day': day,
+                'hour': hour,
+                'minute': minute,
+                'weekday': weekday,
+                'is_holiday': is_holiday,
+                '昼夜区分': day_night,
+                '天候区分': weather_code,
+                'road_shape': road_shape
+            }) 
+            input_data_list.append(input_data)
+
+    # 入力データフレームを作成
+    input_df = pd.DataFrame(input_data_list)
     
     # カテゴリ変数のエンコード
-    for column in ['昼夜区分', '天候区分']:
+    for column in ['昼夜区分', '天候区分','road_shape']:
         le = label_encoders[column]
-        input_data[column] = le.transform(input_data[column])
+        input_data[column] = le.transform(input_df[column])
 
     # 'is_holiday'を数値に変換
-    input_data['is_holiday'] = input_data['is_holiday'].astype(int)
+    input_df['is_holiday'] = input_df['is_holiday'].astype(int)
 
     # フィーチャーの順序を訓練時と一致させる
-    feature_columns = ['latitude', 'longitude', 'month', 'day', 'hour', 'minute',  'weekday', '昼夜区分', '天候区分', 'is_holiday']
-    input_data = input_data[feature_columns]
+    feature_columns = ['latitude', 'longitude', 'month', 'day', 'hour', 'minute',  'weekday', '昼夜区分', '天候区分', 'is_holiday','road_shape']
+    input_df = input_df[feature_columns]
 
     # 事故リスクの予測
-    risk_scores = model.predict_proba(input_data)[:, 1]
-    input_data['risk_score'] = risk_scores
+    risk_scores = model.predict_proba(input_df)[:, 1]
+    input_df['accident'] = risk_scores
+    
+    # 結果を集計（同じクラスターについて平均を取る）
+    risk_summary = input_df.groupby(['latitude', 'longitude']).agg({'accident': 'mean'}).reset_index()
 
-    # リスクスコアが高い地点をフィルタリング（任意）
-    high_risk_data = input_data[input_data['risk_score'] > 0.5]
-
-    # 必要な情報を辞書形式で返す
-    risk_data = high_risk_data[['latitude', 'longitude', 'risk_score']].to_dict(orient='records')
+    # リスクスコアと位置情報を取得
+    risk_data = risk_summary.to_dict(orient='records')
     
     # 結果をクライアントに返す
     return jsonify({
         'riskData': risk_data
-        # その他のデータ
     })
 
 def some_risk_prediction_function(lat, lon, weather, datetime):

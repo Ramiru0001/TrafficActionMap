@@ -18,6 +18,8 @@ import psutil
 import os
 from sklearn.cluster import DBSCAN
 from pyproj import CRS
+from astral import LocationInfo
+from astral.sun import sun
 
 # メモリエラー対策
 max_memory_usage_mb = 40000  # 最大メモリ使用量をMB単位で設定
@@ -29,6 +31,33 @@ def check_memory_usage(max_usage_mb):
     if mem_usage_mb > max_usage_mb:
         raise MemoryError(f"メモリ使用量が {max_usage_mb} MB を超えました。")
 
+def get_day_night_code(lat, lon, date_time):
+    location = LocationInfo(latitude=lat, longitude=lon, timezone='Asia/Tokyo')
+    s = sun(location.observer, date=date_time.date(), tzinfo=jst)
+    sunrise = s['sunrise']
+    sunset = s['sunset']
+    
+    # 日の出・日の入り時刻の前後1時間を計算
+    sunrise_minus_1h = sunrise - pd.Timedelta(hours=1)
+    sunrise_plus_1h = sunrise + pd.Timedelta(hours=1)
+    sunset_minus_1h = sunset - pd.Timedelta(hours=1)
+    sunset_plus_1h = sunset + pd.Timedelta(hours=1)
+
+    if sunrise <= date_time < sunrise_plus_1h:
+        return 11  # 昼－明
+    elif sunrise_plus_1h <= date_time < sunset_minus_1h:
+        return 12  # 昼－昼
+    elif sunset_minus_1h <= date_time < sunset:
+        return 13  # 昼－暮
+    elif sunset <= date_time < sunset_plus_1h:
+        return 21  # 夜－暮
+    elif sunset_plus_1h <= date_time or date_time < sunrise_minus_1h:
+        return 22  # 夜－夜
+    elif sunrise_minus_1h <= date_time < sunrise:
+        return 23  # 夜－明
+    else:
+        return None  # 不明
+    
 # 1. 事故データの読み込みと処理
 try:
     # 事故データの読み込み
@@ -183,7 +212,6 @@ except Exception as e:
 # 3. ネガティブデータの生成
 try:
     # 全体の分布から昼夜区分と天候区分の確率を取得
-    day_night_distribution = data['昼夜区分'].value_counts(normalize=True)
     weather_distribution = data['天候区分'].value_counts(normalize=True)
 
     # 日付の範囲を取得
@@ -236,12 +264,9 @@ try:
         random_timestamps = np.random.uniform(date_min_timestamp, date_max_timestamp, len(neg_gdf))
         neg_gdf['発生日時'] = pd.to_datetime(random_timestamps, unit='s')
 
-        # 昼夜区分と天候区分を全体の分布に基づいて割り当て
-        neg_gdf['昼夜区分'] = np.random.choice(
-            day_night_distribution.index,
-            size=len(neg_gdf),
-            p=day_night_distribution.values
-        )
+        neg_gdf['昼夜区分'] = get_day_night_code(neg_gdf['longitude'], neg_gdf['latitude'], data['発生日時'])
+
+         # 天候区分を全体の分布に基づいて割り当て
         neg_gdf['天候区分'] = np.random.choice(
             weather_distribution.index,
             size=len(neg_gdf),
@@ -275,8 +300,7 @@ try:
     negative_data = negative_data.to_crs('EPSG:4326')
 
     # 必要なカラムを選択
-    features = ['latitude', 'longitude', 'month', 'day', 'hour', 'minute',
-                'weekday', '昼夜区分', '天候区分', 'is_holiday','road_shape']
+    features = ['latitude', 'longitude', 'month', 'day', 'hour', 'minute','weekday', '昼夜区分', '天候区分', 'is_holiday','road_shape']
     target = 'accident'
 
     # カテゴリ変数のラベルエンコーディング
