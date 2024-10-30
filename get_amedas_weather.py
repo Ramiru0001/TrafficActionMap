@@ -6,8 +6,8 @@ def format_latest_time(latest_time_str):
     # ISO8601形式の日時文字列をパース
     dt = datetime.strptime(latest_time_str, '%Y-%m-%dT%H:%M:%S%z')
     # 希望の形式に変換
-    filename = dt.strftime('%Y%m%d%H%M%S')
-    return filename
+    time = dt.strftime('%Y%m%d%H%M%S')
+    return time
 
 def format_YYYYMMDD_h3(latest_time_str):
     dt = datetime.strptime(latest_time_str, '%Y-%m-%dT%H:%M:%S%z')
@@ -16,6 +16,13 @@ def format_YYYYMMDD_h3(latest_time_str):
     dt_rounded = dt.replace(hour=hour, minute=0, second=0, microsecond=0)
     # 希望の形式でファイル名を生成
     time = dt_rounded.strftime('%Y%m%d_%H')
+    return time
+
+def format_YYYYMMDDHHMM00(latest_time_str):
+    # ISO8601形式の日時文字列をパース
+    dt = datetime.strptime(latest_time_str, '%Y-%m-%dT%H:%M:%S%z')
+    # 希望の形式に変換
+    time = dt.strftime('%Y%m%d%H%M00')
     return time
 
 def get_nearest_station(lat, lon):
@@ -68,6 +75,14 @@ def get_current_weather(lat, lon):
     response = requests.get(data_url)
     response.raise_for_status()
     data = response.json()
+    if data == None:
+        return None
+
+    #形式変更
+    latest_time_YmdHM00 = format_YYYYMMDDHHMM00(latest_time_str)
+    print(f"取得した最終記録時刻: {latest_time_YmdHM00}")
+
+    return data[latest_time_YmdHM00]
 
     # データ内のキーが観測所コードであることを確認
     station_data = data.get(station_code)
@@ -92,8 +107,8 @@ def get_current_weather(lat, lon):
 
 if __name__ == '__main__':
     # テスト用の緯度・経度（例：東京駅）
-    lat = 34.354710503107086
-    lon = 136.35887471608626
+    lat = 35.30642033308637
+    lon = 133.98634905167242
 
     current_weather = get_current_weather(lat, lon)
     print(f"現在の天気観測データ: {current_weather}")

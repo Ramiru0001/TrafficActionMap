@@ -20,11 +20,13 @@ import numpy as np
 import os  # 環境変数から API キーを取得するために追加
 # OpenWeatherMap用のモジュールをインポート
 import get_OpenWeatherMap
+import get_amedas_weather
 import traceback
 import math
 import pytz
 
 app = Flask(__name__)
+app.logger.debug('DEBUG')
 # 環境変数から API キーを取得
 api_key = os.environ.get('OPENWEATHERMAP_API_KEY')
 
@@ -74,11 +76,20 @@ def get_weather(lat, lon,api_key):
             #print(f"取得した天気情報: {weather_info}")
             return weather_info
         else:
-            print("天気情報の取得に失敗しました。")
+            print("OpenWeatherMap天気情報の取得に失敗しました。")
             return None
     except Exception as e:
         traceback.print_exc()  # エラーの詳細を表示
         return None
+def get_weather_amedas(lat,lon):
+    amedas_weather_info=get_amedas_weather.get_current_weather(lat,lon)
+    if amedas_weather_info:
+            #print(f"取得した天気情報: {weather_info}")
+            return amedas_weather_info
+    else:
+        print("amedas天気情報の取得に失敗しました。")
+        return None
+
 def extract_weather_info(data, class20_code):
     # データ内の timeSeries を走査
     print(f"デバッグ: 指定された class20_code = {class20_code}")
@@ -120,13 +131,18 @@ def get_weather_and_risk_data():
         lat = data['lat']
         lon = data['lon']
         weather_data = get_weather(lat,lon,api_key)
+        amedas_data=get_weather_amedas(lat,lon)
         weather=weather_data['weather_type'] 
         #print(f"緯度 {lat}、経度 {lon} の天気は: {weather} です。",flush=True)
         if not weather:
             return jsonify({'error': '天気データの取得に失敗しました'}), 500
-
-        # 仮のデータを返す
-        #weather = '晴れ'
+        # if weather=="曇" or weather=="晴" or weather=="雨":
+        if amedas_data["precipitation1h"] or amedas_data["precipitation10m"]:
+            if amedas_data["precipitation1h"][0]>0 or amedas_data["precipitation10m"]>0:
+                weather="雨"
+        elif weather=="雨":
+            weather="晴"
+#編集中
         risk_data = []
 
         return jsonify({'weather': weather, 'riskData': risk_data})
