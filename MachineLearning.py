@@ -4,7 +4,7 @@ import sys
 sys.path.append("C:\\Users\\shian\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages")
 import pandas as pd
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from sklearn.model_selection import train_test_split
 import geopandas as gpd
 from shapely.geometry import Point, Polygon
@@ -20,6 +20,9 @@ from sklearn.cluster import DBSCAN
 from pyproj import CRS
 from astral import LocationInfo
 from astral.sun import sun
+from zoneinfo import ZoneInfo
+exception_type, exception_object, exception_traceback = sys.exc_info()
+import traceback
 
 # メモリエラー対策
 max_memory_usage_mb = 40000  # 最大メモリ使用量をMB単位で設定
@@ -33,7 +36,9 @@ def check_memory_usage(max_usage_mb):
 
 def get_day_night_code(lat, lon, date_time):
     location = LocationInfo(latitude=lat, longitude=lon, timezone='Asia/Tokyo')
-    s = sun(location.observer, date=date_time.date(), tzinfo=jst)
+    # タイムゾーンの生成
+    JST = timezone(timedelta(hours=+9), 'JST')
+    s = sun(location.observer, date=date_time.date(), tzinfo=JST)
     sunrise = s['sunrise']
     sunset = s['sunset']
     
@@ -72,23 +77,28 @@ try:
 
     # 緯度・経度の変換関数
     def dms_str_to_dd(dms_str):
-        dms_str = str(dms_str).zfill(10)
-        if len(dms_str) == 9:  # 緯度の場合
-            degrees = int(dms_str[0:2])
-            minutes = int(dms_str[2:4])
-            seconds = int(dms_str[4:6])
-            fraction = int(dms_str[6:9]) / 1000
-        elif len(dms_str) == 10:  # 経度の場合
-            degrees = int(dms_str[0:3])
-            minutes = int(dms_str[3:5])
-            seconds = int(dms_str[5:7])
-            fraction = int(dms_str[7:10]) / 1000
-        else:
-            return None
+        try:
+            dms_str = str(dms_str).zfill(10)
+            if len(dms_str) == 9:  # 緯度の場合
+                degrees = int(dms_str[0:2])
+                minutes = int(dms_str[2:4])
+                seconds = int(dms_str[4:6])
+                fraction = int(dms_str[6:9]) / 1000
+            elif len(dms_str) == 10:  # 経度の場合
+                degrees = int(dms_str[0:3])
+                minutes = int(dms_str[3:5])
+                seconds = int(dms_str[5:7])
+                fraction = int(dms_str[7:10]) / 1000
+            else:
+                return None
 
-        seconds = seconds + fraction
-        dd = degrees + minutes / 60 + seconds / 3600
-        return dd
+            seconds = seconds + fraction
+            dd = degrees + minutes / 60 + seconds / 3600
+            return dd
+        
+        except Exception as e:
+            print(f"エラー: {e}")
+            traceback.print_exc()
 
     # 緯度・経度の変換
     data['latitude'] = data['地点　緯度（北緯）'].apply(dms_str_to_dd)
@@ -137,6 +147,8 @@ try:
     data['天候区分'] = data['天候'].apply(map_weather)
     data['昼夜区分'] = data['昼夜'].apply(map_day_night)
 
+    print(f"data天候区分={data['天候区分'][0]},{data['天候区分'][30]},data昼夜区分={data['昼夜区分'][0]},{data['昼夜区分'][30]}")
+    print(f"lat={data['latitude'][0]},{data['latitude'][30]}lon={data['longitude'][0]},{data['longitude'][30]}")
     # 事故発生フラグを追加
     data['accident'] = 1
 
@@ -149,6 +161,7 @@ try:
 
 except Exception as e:
     print(f"エラー: {e}")
+    traceback.print_exc()
 
 # 2. クラスターの作成
 try:
@@ -205,9 +218,11 @@ try:
 
     # クラスターポリゴンを保存（後で予測時に使用するため）
     cluster_polygons_gdf.to_crs('EPSG:4326').to_file('cluster_polygons.geojson', driver='GeoJSON')
+    print("geojson作成")
 
 except Exception as e:
     print(f"エラー: {e}")
+    traceback.print_exc()
 
 # 3. ネガティブデータの生成
 try:
@@ -242,7 +257,9 @@ try:
         max_attempts = num_neg_samples * 10
 
         while len(negative_points) < num_neg_samples and attempts < max_attempts:
-            random_point = Point(np.random.uniform(minx, maxx), np.random.uniform(miny, maxy))
+            # ランダムなポイントを生成
+            random_point = cluster_polygon.representative_point()
+            random_point = cluster_polygon.exterior.interpolate(np.random.uniform(0, cluster_polygon.exterior.length))
             if cluster_polygon.contains(random_point) and not any(random_point.equals(p) for p in accident_points):
                 negative_points.append(random_point)
             attempts += 1
@@ -255,6 +272,8 @@ try:
             {'geometry': negative_points},
             crs=aeqd_crs
         )
+        # 座標系をWGS84に変換
+        neg_gdf = neg_gdf.to_crs(epsg=4326)
 
         # 必要な情報を追加
         neg_gdf['longitude'] = neg_gdf.geometry.x
@@ -264,14 +283,24 @@ try:
         random_timestamps = np.random.uniform(date_min_timestamp, date_max_timestamp, len(neg_gdf))
         neg_gdf['発生日時'] = pd.to_datetime(random_timestamps, unit='s')
 
-        neg_gdf['昼夜区分'] = get_day_night_code(neg_gdf['longitude'], neg_gdf['latitude'], data['発生日時'])
+        # 昼夜区分を計算
+        def calculate_day_night(row):
+            try:
+                return get_day_night_code(row['latitude'], row['longitude'], row['発生日時'])
+            except Exception as e:
+                    print(f"エラー: 緯度={row['latitude']}, 経度={row['longitude']}, 日時={row['発生日時']} の昼夜区分計算中にエラーが発生しました: {e}")
+                    return 0  # '不明'
 
-         # 天候区分を全体の分布に基づいて割り当て
+        neg_gdf['昼夜区分'] = neg_gdf.apply(calculate_day_night, axis=1)
+        neg_gdf['昼夜区分'] = neg_gdf['昼夜区分'].apply(map_day_night)
+
+        # 天候区分を全体の分布に基づいて割り当て
         neg_gdf['天候区分'] = np.random.choice(
-            weather_distribution.index,
+            data['天候区分'].unique(),
             size=len(neg_gdf),
             p=weather_distribution.values
         )
+        #neg_gdf['天候区分'] = neg_gdf['天候区分'].apply(map_weather)
 
         # その他の情報を追加
         neg_gdf['weekday'] = neg_gdf['発生日時'].dt.weekday
@@ -290,8 +319,12 @@ try:
     # 全てのネガティブデータを結合
     negative_data = pd.concat(negative_samples_list, ignore_index=True)
 
+    print(f"neg天候区分={neg_gdf['天候区分'][0]},{neg_gdf['天候区分'][30]},neg昼夜区分={neg_gdf['昼夜区分'][0]},{neg_gdf['昼夜区分'][30]}")
+    print(f"lat={neg_gdf['latitude'][0]},{neg_gdf['latitude'][30]}lon={neg_gdf['longitude'][0]},{neg_gdf['longitude'][30]}")
+
 except Exception as e:
     print(f"エラー: {e}")
+    traceback.print_exc()
 
 # 4. データの統合とモデルの作成
 try:
@@ -356,5 +389,6 @@ try:
 
 except Exception as e:
     print(f"エラー: {e}")
+    traceback.print_exc()
 
 print("プログラムがが完了しました。")

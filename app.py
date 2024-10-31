@@ -71,7 +71,7 @@ def is_holiday():
     today = datetime.date.today()
     return jpholiday.is_holiday(today)
 
-def get_weather(lat, lon,api_key):
+def get_weather_OpenWeatherMap(lat, lon,api_key):
     try:
         # get_OpenWeatherMap.py の get_current_weather 関数を呼び出す
         weather_info = get_OpenWeatherMap.get_current_weather(lat, lon, api_key)
@@ -127,14 +127,14 @@ def get_weather_code(weather):
 def index():
     return render_template('index.html')
 
-@app.route('/get_weather_and_risk_data', methods=['POST'])
-def get_weather_and_risk_data():
+@app.route('/get_weather', methods=['POST'])
+def get_weather():
     try:
         data = request.get_json()
         lat = data['lat']
         lon = data['lon']
-        weather_data = get_weather(lat,lon,api_key)
-        amedas_data=get_weather_amedas(lat,lon)
+        weather_data = get_weather_OpenWeatherMap(lat,lon,api_key)
+        amedas_data = get_weather_amedas(lat,lon)
         weather=weather_data['weather_type'] 
         #print(f"緯度 {lat}、経度 {lon} の天気は: {weather} です。",flush=True)
         if not weather:
@@ -153,9 +153,8 @@ def get_weather_and_risk_data():
         else:
             weather = '晴'
         
-        risk_data = []
         print(weather)
-        return jsonify({'weather': weather, 'riskData': risk_data})
+        return jsonify({'weather': weather})
     except Exception as e:
         traceback.print_exc()  # スタックトレースをコンソールに出力
         return jsonify({'error': 'サーバーエラーが発生しました'}), 500
@@ -201,7 +200,7 @@ def get_risk_data():
 
     # ユーザーの位置をバッファリングして範囲を作成
     user_location_gdf = gpd.GeoDataFrame(geometry=[user_location], crs='EPSG:4326')
-    user_location_buffer = user_location_gdf.to_crs(epsg=3857).buffer(prediction_radius).to_crs(epsg=4326).unary_all()
+    user_location_buffer = user_location_gdf.to_crs(epsg=3857).buffer(prediction_radius).to_crs(epsg=4326).union_all()
 
     # 範囲内のクラスターを取得
     clusters_in_area = cluster_polygons_gdf[cluster_polygons_gdf.intersects(user_location_buffer)]
@@ -271,6 +270,7 @@ def get_risk_data():
 
     # リスクスコアと位置情報を取得
     risk_data = risk_summary.to_dict(orient='records')
+    print(f"リスクデータ：{risk_data}")
     
     # 結果をクライアントに返す
     return jsonify({

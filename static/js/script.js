@@ -113,14 +113,14 @@ map.on('click', function(e) {
     // マーカーを追加
     addMarker(lat, lon);
 
-    // 住所を更新
+    // 画面に表示される住所を更新
     displayAddress(lat, lon);
 
     // 選択した位置の天気と危険情報を取得
     getWeatherAndRiskData(lat, lon);
 });
 
-// 住所を表示する関数
+// 画面上に住所を表示する関数
 function displayAddress(lat, lon) {
     // Nominatim APIを使用して逆ジオコーディング
     var url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=' + lat + '&lon=' + lon + '&accept-language=ja';
@@ -180,47 +180,7 @@ function displayAddress(lat, lon) {
     });
 }
 
-// function getWeatherCode(weatherText) {
-//     const weatherDict = {
-//         '晴れ': 1,
-//         '曇り': 2,
-//         '雨': 3,
-//         '霧': 4,
-//         '雪': 5
-//     };
-//     return weatherDict[weatherText] || 0;  // '0'は未知の天候
-// }
-
-// function getRiskPrediction(lat, lon, hour, weather, isHoliday, dayNight) {
-//     // 現在の曜日を取得
-//     var date = new Date();
-//     var weekday = date.getDay(); // 0（日曜日）から6（土曜日）
-
-//     fetch('/predict_accident_risk', {
-//         method: 'POST',
-//         headers: {
-//             'Content-Type': 'application/json'
-//         },
-//         body: JSON.stringify({
-//             lat: lat,
-//             lon: lon,
-//             hour: hour,
-//             weekday: weekday,
-//             is_holiday: isHoliday,
-//             day_night: dayNight,
-//             weather: weather
-//         })
-//     })
-//     .then(response => response.json())
-//     .then(data => {
-//         displayRiskOnMap(lat, lon, data.riskScore);
-//     })
-//     .catch(error => {
-//         console.error('Error:', error);
-//     });
-// }
-
-// 天気情報を表示する関数
+// ディスプレイ上に引数と同じ天気情報を表示する関数
 function displayWeather(weatherInfo) {
     //alert("天気更新")
     var weatherSelect = document.getElementById('weather');
@@ -248,7 +208,6 @@ function displayWeather(weatherInfo) {
     }
 }
 
-
 // 地図の初期化
 //var map = L.map('map').setView([35.681236, 139.767125], 12); // 東京駅を中心に設定
 
@@ -258,10 +217,10 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 
 
-// 天気と危険情報を取得する関数
+// 選択した位置の天気と、危険情報を取得する関数
 function getWeatherAndRiskData(lat, lon) {
     //alert('getWeatherAndRiskDataが呼ばれた');
-    fetch('/get_weather_and_risk_data', {
+    fetch('/get_weather', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -275,10 +234,8 @@ function getWeatherAndRiskData(lat, lon) {
         displayWeather(data.weather);
 
         // 地図上に危険情報を表示
-        displayRiskDataOnMap(data.riskData);
+        getRiskData();
 
-        // 現在地を更新
-        updateCurrentLocation(lat, lon);
     })
     .catch(error => {
         console.error('Error:', error);
@@ -286,126 +243,83 @@ function getWeatherAndRiskData(lat, lon) {
     });
 }
 
-// 地図上に危険情報を表示する関数
-function displayRiskDataOnMap(riskData) {
-    // リスクマーカーを追加（実装は省略）
-}
-
-// 現在地を更新する関数
-function updateCurrentLocation(lat, lon) {
-    // 必要に応じて現在地を保持
-}
-
-// 祝日情報を取得して表示する関数
-// function checkHoliday() {
-//     var dateInput = document.getElementById('date').value;
-//     console.log('選択された日付:', dateInput); // デバッグ用のログ
-
-//     fetch('/is_holiday', {
-//         method: 'POST',
-//         headers: { 'Content-Type': 'application/json' },
-//         body: JSON.stringify({ date: dateInput })
-//     })
-//     .then(response => {
-//         if (!response.ok) {
-//             return response.json().then(errorData => {
-//                 throw new Error(errorData.error || 'サーバーエラーが発生しました');
-//             });
-//         }
-//         return response.json();
-//     })
-//     .then(data => {
-//         var holidayInfo = document.getElementById('holidayInfo');
-//         if (data.is_holiday) {
-//             holidayInfo.innerText = '選択された日は祝日です: ' + data.holiday_name;
-//         } else {
-//             holidayInfo.innerText = '選択された日は平日です';
-//         }
-//     })
-//     .catch(error => {
-//         console.error('Error:', error);
-//         var holidayInfo = document.getElementById('holidayInfo');
-//         holidayInfo.innerText = '祝日情報の取得に失敗しました: ' + error.message;
-//     });
-// }
-
-
+//リスクデータを取得して表示
 function getRiskData() {
-    //編集中
-    alert("getRiskData2")
-    // フォームの値を取得
-    var weatherSelect = document.getElementById('weather');
-    var weather = weatherSelect.value;
+    try{
+        //編集中
+        // フォームの値を取得
+        var weatherSelect = document.getElementById('weather');
+        var weather = weatherSelect.value;
 
-    var dateInput = document.getElementById('date').value;
-    var timeInput = document.getElementById('time').value;
+        var dateInput = document.getElementById('date').value;
+        var timeInput = document.getElementById('time').value;
 
-    // 日付と時間を結合して datetime を作成
-    var datetime = dateInput + 'T' + timeInput; // ISO形式の日時文字列
-
-    // 予測時間間隔を取得
-    var durationSelect = document.getElementById('prediction_duration');
-    var prediction_duration = parseInt(durationSelect.value);
-    alert("getRiskData3")
-    // 半径予想範囲を取得
-    var prediction_radius;
-    if (radiusSelect.value === 'other') {
-        var radiusInput = document.getElementById('prediction_radius_input');
-        prediction_radius = parseInt(radiusInput.value);
-        if (isNaN(prediction_radius)) {
-            alert('半径予想範囲を正しく入力してください。');
+        // 日付と時間を結合して datetime を作成
+        var datetime = dateInput + ' ' + timeInput; // ISO形式の日時文字列
+        //alert(datetime)
+        // 予測時間間隔を取得
+        var durationSelect = document.getElementById('prediction_duration');
+        var prediction_duration = parseInt(durationSelect.value);
+        
+        // 半径予想範囲を取得
+        var radiusSelect = document.getElementById('prediction_radius');
+        var prediction_radius;
+        if (radiusSelect.value === 'other') {
+            var radiusInput = document.getElementById('prediction_radius_input');
+            prediction_radius = parseInt(radiusInput.value);
+            if (isNaN(prediction_radius)) {
+                alert('半径予想範囲を正しく入力してください。');
+                return;
+            }
+        } else {
+            prediction_radius = parseInt(radiusSelect.value);
+        }
+        // 現在のマーカーの位置（緯度・経度）を取得
+        var lat, lon;
+        if (marker) {
+            lat = marker.getLatLng().lat;
+            lon = marker.getLatLng().lng;
+        } else {
+            alert('地図上にマーカーがありません。位置を選択してください。');
             return;
         }
-        alert("getRiskData3.5")
-    } else {
-        prediction_radius = parseInt(radiusSelect.value);
-        alert("getRiskData3.8")
-    }
-    alert("getRiskData4")
-    // 現在のマーカーの位置（緯度・経度）を取得
-    var lat, lon;
-    if (marker) {
-        lat = marker.getLatLng().lat;
-        lon = marker.getLatLng().lng;
-    } else {
-        alert('地図上にマーカーがありません。位置を選択してください。');
-        return;
-    }
 
-    // サーバーにデータを送信
-    var requestData = {
-        weather: weather,
-        datetime: datetime,
-        latitude: lat,
-        longitude: lon,
-        prediction_duration: prediction_duration,
-        prediction_radius:prediction_radius
-    };
-    alert("getRiskData5")
-    fetch('/get_risk_data', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestData)
-    })
-    .then(response => {
-        if (!response.ok) {
-            return response.json().then(errorData => {
-                throw new Error(errorData.error || 'サーバーエラーが発生しました');
-            });
-        }
-        return response.json();
-    })
-    .then(data => {
-        // リスクデータを地図に表示
-        displayRiskData(data.riskData);
-        alert(data.riskData)
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('リスクデータの取得に失敗しました。');
-    });
+        // サーバーにデータを送信
+        var requestData = {
+            weather: weather,
+            datetime: datetime,
+            latitude: lat,
+            longitude: lon,
+            prediction_duration: prediction_duration,
+            prediction_radius:prediction_radius
+        };
+        fetch('/get_risk_data', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(errorData => {
+                    throw new Error(errorData.error || 'サーバーエラーが発生しました');
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            // リスクデータを地図に表示
+            displayRiskData(data.riskData);
+            alert(data.riskData)
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('リスクデータの取得に失敗しました。');
+        });
+    } catch(e) {
+        alert( e.message );
+    }
 }
 
 var riskMarkers = []; // 既存のリスクマーカーを保持

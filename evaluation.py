@@ -1,7 +1,7 @@
 # evaluation.py
 import pandas as pd
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import joblib
 import jpholiday
 from sklearn.metrics import classification_report, confusion_matrix, precision_score, recall_score, f1_score, accuracy_score, roc_auc_score, roc_curve
@@ -58,7 +58,9 @@ def dms_str_to_dd(dms_str):
 
 def get_day_night_code(lat, lon, date_time):
     location = LocationInfo(latitude=lat, longitude=lon, timezone='Asia/Tokyo')
-    s = sun(location.observer, date=date_time.date(), tzinfo=jst)
+    # タイムゾーンの生成
+    JST = timezone(timedelta(hours=+9), 'JST')
+    s = sun(location.observer, date=date_time.date(), tzinfo=JST)
     sunrise = s['sunrise']
     sunset = s['sunset']
     
