@@ -12,6 +12,6 @@ echo %date%
 rem 現在時刻
 echo %time%
 
-F:\TrafficActionMap\chime\1.mp3
+chime\1.mp3
 
 pause

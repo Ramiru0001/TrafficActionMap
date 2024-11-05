@@ -23,6 +23,10 @@ from astral.sun import sun
 from zoneinfo import ZoneInfo
 exception_type, exception_object, exception_traceback = sys.exc_info()
 import traceback
+import pytz
+
+# タイムゾーンの設定
+JST = pytz.timezone('Asia/Tokyo')
 
 # メモリエラー対策
 max_memory_usage_mb = 40000  # 最大メモリ使用量をMB単位で設定
@@ -37,8 +41,8 @@ def check_memory_usage(max_usage_mb):
 def get_day_night_code(lat, lon, date_time):
     location = LocationInfo(latitude=lat, longitude=lon, timezone='Asia/Tokyo')
     # タイムゾーンの生成
-    JST = timezone(timedelta(hours=+9), 'JST')
-    s = sun(location.observer, date=date_time.date(), tzinfo=JST)
+    #JST = timezone(timedelta(hours=+9), 'JST')
+    s = sun(location.observer, date=date_time.date(), tzinfo=pytz.timezone('Asia/Tokyo'))
     sunrise = s['sunrise']
     sunset = s['sunset']
     
@@ -62,7 +66,17 @@ def get_day_night_code(lat, lon, date_time):
         return 23  # 夜－明
     else:
         return None  # 不明
-    
+#ログ出力用
+def print_samples(df, name, num_samples=5):
+    print(f"\n{name} Samples:")
+    # Print first `num_samples` samples
+    print(f"First {num_samples} samples:")
+    print(df[['latitude', 'longitude', '天候区分', '昼夜区分', 'weekday', 'is_holiday', 'road_shape', '発生日時']].head(num_samples))
+    # Print random `num_samples` samples
+    print(f"\nRandom {num_samples} samples:")
+    print(df[['latitude', 'longitude', '天候区分', '昼夜区分', 'weekday', 'is_holiday', 'road_shape', '発生日時']].sample(num_samples, random_state=42))
+
+
 # 1. 事故データの読み込みと処理
 try:
     # 事故データの読み込み
@@ -116,6 +130,7 @@ try:
 
     # 発生日時を datetime 型に変換
     data['発生日時'] = pd.to_datetime(data[['year', 'month', 'day', 'hour', 'minute']])
+    data['発生日時'] = data['発生日時'].dt.tz_localize('Asia/Tokyo')
 
     # 日時関連の特徴量を作成
     data['weekday'] = data['発生日時'].dt.weekday
@@ -147,8 +162,8 @@ try:
     data['天候区分'] = data['天候'].apply(map_weather)
     data['昼夜区分'] = data['昼夜'].apply(map_day_night)
 
-    print(f"data天候区分={data['天候区分'][0]},{data['天候区分'][30]},data昼夜区分={data['昼夜区分'][0]},{data['昼夜区分'][30]}")
-    print(f"lat={data['latitude'][0]},{data['latitude'][30]}lon={data['longitude'][0]},{data['longitude'][30]}")
+    # ポジティブデータのサンプルを表示
+    print_samples(data, "Positive Data")
     # 事故発生フラグを追加
     data['accident'] = 1
 
@@ -282,6 +297,11 @@ try:
         # 発生日時をランダムに生成
         random_timestamps = np.random.uniform(date_min_timestamp, date_max_timestamp, len(neg_gdf))
         neg_gdf['発生日時'] = pd.to_datetime(random_timestamps, unit='s')
+        neg_gdf['発生日時'] = neg_gdf['発生日時'].dt.tz_localize('Asia/Tokyo')
+        
+        # '発生日時'を分単位に切り捨て
+        neg_gdf['発生日時'] = neg_gdf['発生日時'].dt.floor('min')
+
 
         # 昼夜区分を計算
         def calculate_day_night(row):
@@ -319,8 +339,8 @@ try:
     # 全てのネガティブデータを結合
     negative_data = pd.concat(negative_samples_list, ignore_index=True)
 
-    print(f"neg天候区分={neg_gdf['天候区分'][0]},{neg_gdf['天候区分'][30]},neg昼夜区分={neg_gdf['昼夜区分'][0]},{neg_gdf['昼夜区分'][30]}")
-    print(f"lat={neg_gdf['latitude'][0]},{neg_gdf['latitude'][30]}lon={neg_gdf['longitude'][0]},{neg_gdf['longitude'][30]}")
+    # ネガティブデータのサンプルを表示
+    print_samples(negative_data, "Negative Data")
 
 except Exception as e:
     print(f"エラー: {e}")
