@@ -24,8 +24,7 @@ from zoneinfo import ZoneInfo
 exception_type, exception_object, exception_traceback = sys.exc_info()
 import traceback
 import pytz
-from multiprocessing import Pool
-from shapely.strtree import STRtree
+
 # タイムゾーンの設定
 JST = pytz.timezone('Asia/Tokyo')
 
@@ -67,21 +66,6 @@ def get_day_night_code(lat, lon, date_time):
         return 23  # 夜－明
     else:
         return None  # 不明
-
-# 天候と昼夜の区分をマッピング
-def map_weather(code):
-    weather_dict = {
-        0: '不明', 1: '晴', 2: '曇', 3: '雨', 4: '霧', 5: '雪'
-    }
-    return weather_dict.get(int(code), '不明')
-
-def map_day_night(code):
-    day_night_dict = {
-        0: '不明', 11: '昼_明', 12: '昼_昼', 13: '昼_暮',
-        21: '夜_暮', 22: '夜_夜', 23: '夜_明'
-    }
-    return day_night_dict.get(int(code), '不明')
-
 #ログ出力用
 def print_samples(df, name, num_samples=5):
     print(f"\n{name} Samples:")
@@ -91,85 +75,6 @@ def print_samples(df, name, num_samples=5):
     # Print random `num_samples` samples
     print(f"\nRandom {num_samples} samples:")
     print(df[['latitude', 'longitude', '天候区分', '昼夜区分', 'weekday', 'is_holiday', 'road_shape', '発生日時']].sample(num_samples, random_state=42))
-
-# ネガティブポイント生成関数
-def generate_random_points(polygon, num_points,accident_tree, accident_points_list):
-    minx, miny, maxx, maxy = polygon.bounds
-    points = []
-    while len(points) < num_points:
-        remaining = num_points - len(points)
-        # 一度に多くのポイントを生成
-        random_x = np.random.uniform(minx, maxx, remaining * 2)
-        random_y = np.random.uniform(miny, maxy, remaining * 2)
-        candidate_points = gpd.GeoSeries([Point(x, y) for x, y in zip(random_x, random_y)])
-        # ポリゴン内のポイントをフィルタリング
-        within_polygon = candidate_points[candidate_points.within(polygon)]
-        # 重複を排除
-        unique_points = within_polygon[~within_polygon.isin(points)]
-        # ポジティブポイントとの重複を排除
-        unique_points = unique_points[~unique_points.apply(lambda p: is_duplicate(p, accident_tree, accident_points_list))]
-        points.extend(unique_points.tolist())
-        if len(points) >= num_points:
-            break
-    return points[:num_points]
-
-def is_duplicate(point, tree):
-    possible_duplicates = tree.query(point)
-    return any(point.equals(p) for p in possible_duplicates)
-
-# クラスター処理関数（並列用）
-def process_cluster(args):
-    road_shape, cluster_label, group, cluster_polygon, accident_tree, accident_points_list,weather_distribution, date_min_timestamp, date_max_timestamp = args
-    
-    # ネガティブデータの数を設定
-    num_neg_samples = len(group) * 3
-    negative_points = generate_random_points(cluster_polygon, num_neg_samples,accident_tree, accident_points_list)
-
-    if len(negative_points) < num_neg_samples:
-        print(f"警告: クラスター {(road_shape, cluster_label)} のネガティブデータが目標数に達しませんでした。生成数: {len(negative_points)}")
-
-    # GeoDataFrame作成
-    neg_gdf = gpd.GeoDataFrame({'geometry': negative_points}, crs=aeqd_crs)
-    # 座標系をWGS84に変換
-    neg_gdf = neg_gdf.to_crs(epsg=4326)
-    # 必要な情報を追加
-    neg_gdf['longitude'] = neg_gdf.geometry.x
-    neg_gdf['latitude'] = neg_gdf.geometry.y
-
-    # 発生日時生成とタイムゾーン設定
-    random_timestamps = np.random.uniform(date_min_timestamp, date_max_timestamp, len(neg_gdf))
-    neg_gdf['発生日時'] = pd.to_datetime(random_timestamps, unit='s')
-    neg_gdf['発生日時'] = neg_gdf['発生日時'].dt.floor('min').dt.tz_localize('Asia/Tokyo')
-    # '発生日時'を分単位に切り捨て
-    neg_gdf['発生日時'] = neg_gdf['発生日時'].dt.floor('min')
-
-    # 天候区分割り当て
-    neg_gdf['天候区分'] = np.random.choice(
-        weather_distribution.index,
-        size=len(neg_gdf),
-        p=weather_distribution.values
-    )
-
-    # 昼夜区分計算
-    neg_gdf['昼夜区分'] = neg_gdf.apply(
-        lambda row: get_day_night_code(row['latitude'], row['longitude'], row['発生日時']),
-        axis=1
-    )
-    neg_gdf['昼夜区分'] = neg_gdf['昼夜区分'].apply(map_day_night)
-
-    # その他の特徴量追加
-    neg_gdf['weekday'] = neg_gdf['発生日時'].dt.weekday
-    neg_gdf['year'] = neg_gdf['発生日時'].dt.year
-    neg_gdf['month'] = neg_gdf['発生日時'].dt.month
-    neg_gdf['day'] = neg_gdf['発生日時'].dt.day
-    neg_gdf['hour'] = neg_gdf['発生日時'].dt.hour
-    neg_gdf['minute'] = neg_gdf['発生日時'].dt.minute
-    neg_gdf['is_holiday'] = neg_gdf['発生日時'].apply(lambda x: jpholiday.is_holiday(x))
-    neg_gdf['accident'] = 0  # ネガティブデータ
-    neg_gdf['road_shape'] = road_shape
-    neg_gdf['cluster'] = cluster_label
-
-    return neg_gdf
 
 
 # 1. 事故データの読み込みと処理
@@ -240,12 +145,25 @@ try:
     data['昼夜'] = data['昼夜'].fillna(UNKNOWN_DAY_NIGHT_CODE)
     data['road_shape'] = data['road_shape'].fillna('不明')  # '道路形状' の欠損値を '不明' に置換
 
+    # 天候と昼夜の区分をマッピング
+    def map_weather(code):
+        weather_dict = {
+            0: '不明', 1: '晴', 2: '曇', 3: '雨', 4: '霧', 5: '雪'
+        }
+        return weather_dict.get(int(code), '不明')
+
+    def map_day_night(code):
+        day_night_dict = {
+            0: '不明', 11: '昼_明', 12: '昼_昼', 13: '昼_暮',
+            21: '夜_暮', 22: '夜_夜', 23: '夜_明'
+        }
+        return day_night_dict.get(int(code), '不明')
+
     data['天候区分'] = data['天候'].apply(map_weather)
     data['昼夜区分'] = data['昼夜'].apply(map_day_night)
 
     # ポジティブデータのサンプルを表示
     print_samples(data, "Positive Data")
-    
     # 事故発生フラグを追加
     data['accident'] = 1
 
@@ -333,116 +251,94 @@ try:
 
     # ネガティブデータを保持するリスト
     negative_samples_list = []
-    
-    # ポジティブデータの空間インデックス作成
-    accident_points_list = list(clustered_data['geometry'])
-    accident_tree = STRtree(accident_points_list)
 
-    # クラスターごとに引数を準備
-    args_list = []
+    # 各クラスターごとにネガティブデータを生成
     for (road_shape, cluster_label), group in clustered_data.groupby(['road_shape', 'cluster']):
-        
+        # クラスター内の事故地点を取得
+        accident_points = group['geometry'].values
+
         # クラスターのジオメトリを取得
         cluster_polygon = cluster_polygons_gdf[
             (cluster_polygons_gdf['road_shape'] == road_shape) & (cluster_polygons_gdf['cluster'] == cluster_label)
         ]['geometry'].iloc[0]
+
+        minx, miny, maxx, maxy = cluster_polygon.bounds
+
+        # ネガティブデータの数を設定（ポジティブデータの数と同じにする）
+        num_neg_samples = len(group)* 3
+
+        negative_points = []
+        attempts = 0
+        max_attempts = num_neg_samples * 10
+
+        while len(negative_points) < num_neg_samples and attempts < max_attempts:
+            # ランダムなポイントを生成
+            random_point = cluster_polygon.representative_point()
+            random_point = cluster_polygon.exterior.interpolate(np.random.uniform(0, cluster_polygon.exterior.length))
+            if cluster_polygon.contains(random_point) and not any(random_point.equals(p) for p in accident_points):
+                negative_points.append(random_point)
+            attempts += 1
+
+        if len(negative_points) < num_neg_samples:
+            print(f"警告: クラスター {(road_shape, cluster_label)} のネガティブデータが目標数に達しませんでした。生成数: {len(negative_points)}")
+
+        # ネガティブデータのGeoDataFrameを作成
+        neg_gdf = gpd.GeoDataFrame(
+            {'geometry': negative_points},
+            crs=aeqd_crs
+        )
+        # 座標系をWGS84に変換
+        neg_gdf = neg_gdf.to_crs(epsg=4326)
+
+        # 必要な情報を追加
+        neg_gdf['longitude'] = neg_gdf.geometry.x
+        neg_gdf['latitude'] = neg_gdf.geometry.y
+
+        # 発生日時をランダムに生成
+        random_timestamps = np.random.uniform(date_min_timestamp, date_max_timestamp, len(neg_gdf))
+        neg_gdf['発生日時'] = pd.to_datetime(random_timestamps, unit='s')
+        neg_gdf['発生日時'] = neg_gdf['発生日時'].dt.tz_localize('Asia/Tokyo')
         
-        args_list.append((road_shape, cluster_label, group, cluster_polygon, accident_tree, accident_points_list,weather_distribution, date_min_timestamp, date_max_timestamp))
-
-    # 並列処理でクラスタごとにネガティブデータ生成
-    with Pool(processes=8) as pool:  # CPUコア数に応じて調整
-        results = pool.map(process_cluster, args_list)
-    
-    # 各クラスターごとにネガティブデータを生成
-    # for (road_shape, cluster_label), group in clustered_data.groupby(['road_shape', 'cluster']):
-    #     # クラスター内の事故地点を取得
-    #     accident_points = group['geometry'].values
-
-    #     # クラスターのジオメトリを取得
-    #     cluster_polygon = cluster_polygons_gdf[
-    #         (cluster_polygons_gdf['road_shape'] == road_shape) & (cluster_polygons_gdf['cluster'] == cluster_label)
-    #     ]['geometry'].iloc[0]
-
-    #     minx, miny, maxx, maxy = cluster_polygon.bounds
-
-    #     # ネガティブデータの数を設定（ポジティブデータの数と同じにする）
-    #     num_neg_samples = len(group)* 3
-
-    #     negative_points = []
-    #     attempts = 0
-    #     max_attempts = num_neg_samples * 10
-
-    #     while len(negative_points) < num_neg_samples and attempts < max_attempts:
-    #         # ランダムなポイントを生成
-    #         random_point = cluster_polygon.representative_point()
-    #         random_point = cluster_polygon.exterior.interpolate(np.random.uniform(0, cluster_polygon.exterior.length))
-    #         if cluster_polygon.contains(random_point) and not any(random_point.equals(p) for p in accident_points):
-    #             negative_points.append(random_point)
-    #         attempts += 1
-
-    #     if len(negative_points) < num_neg_samples:
-    #         print(f"警告: クラスター {(road_shape, cluster_label)} のネガティブデータが目標数に達しませんでした。生成数: {len(negative_points)}")
-
-    #     # ネガティブデータのGeoDataFrameを作成
-    #     neg_gdf = gpd.GeoDataFrame(
-    #         {'geometry': negative_points},
-    #         crs=aeqd_crs
-    #     )
-    #     # 座標系をWGS84に変換
-    #     neg_gdf = neg_gdf.to_crs(epsg=4326)
-
-    #     # 必要な情報を追加
-    #     neg_gdf['longitude'] = neg_gdf.geometry.x
-    #     neg_gdf['latitude'] = neg_gdf.geometry.y
-
-    #     # 発生日時をランダムに生成
-    #     random_timestamps = np.random.uniform(date_min_timestamp, date_max_timestamp, len(neg_gdf))
-    #     neg_gdf['発生日時'] = pd.to_datetime(random_timestamps, unit='s')
-    #     neg_gdf['発生日時'] = neg_gdf['発生日時'].dt.tz_localize('Asia/Tokyo')
-        
-    #     # '発生日時'を分単位に切り捨て
-    #     neg_gdf['発生日時'] = neg_gdf['発生日時'].dt.floor('min')
+        # '発生日時'を分単位に切り捨て
+        neg_gdf['発生日時'] = neg_gdf['発生日時'].dt.floor('min')
 
 
-    #     # 昼夜区分を計算
-    #     def calculate_day_night(row):
-    #         try:
-    #             return get_day_night_code(row['latitude'], row['longitude'], row['発生日時'])
-    #         except Exception as e:
-    #                 print(f"エラー: 緯度={row['latitude']}, 経度={row['longitude']}, 日時={row['発生日時']} の昼夜区分計算中にエラーが発生しました: {e}")
-    #                 return 0  # '不明'
+        # 昼夜区分を計算
+        def calculate_day_night(row):
+            try:
+                return get_day_night_code(row['latitude'], row['longitude'], row['発生日時'])
+            except Exception as e:
+                    print(f"エラー: 緯度={row['latitude']}, 経度={row['longitude']}, 日時={row['発生日時']} の昼夜区分計算中にエラーが発生しました: {e}")
+                    return 0  # '不明'
 
-    #     neg_gdf['昼夜区分'] = neg_gdf.apply(calculate_day_night, axis=1)
-    #     neg_gdf['昼夜区分'] = neg_gdf['昼夜区分'].apply(map_day_night)
+        neg_gdf['昼夜区分'] = neg_gdf.apply(calculate_day_night, axis=1)
+        neg_gdf['昼夜区分'] = neg_gdf['昼夜区分'].apply(map_day_night)
 
-    #     # 天候区分を全体の分布に基づいて割り当て
-    #     neg_gdf['天候区分'] = np.random.choice(
-    #         data['天候区分'].unique(),
-    #         size=len(neg_gdf),
-    #         p=weather_distribution.values
-    #     )
-    #     #neg_gdf['天候区分'] = neg_gdf['天候区分'].apply(map_weather)
+        # 天候区分を全体の分布に基づいて割り当て
+        neg_gdf['天候区分'] = np.random.choice(
+            data['天候区分'].unique(),
+            size=len(neg_gdf),
+            p=weather_distribution.values
+        )
+        #neg_gdf['天候区分'] = neg_gdf['天候区分'].apply(map_weather)
 
-    #     # その他の情報を追加
-    #     neg_gdf['weekday'] = neg_gdf['発生日時'].dt.weekday
-    #     neg_gdf['year'] = neg_gdf['発生日時'].dt.year
-    #     neg_gdf['month'] = neg_gdf['発生日時'].dt.month
-    #     neg_gdf['day'] = neg_gdf['発生日時'].dt.day
-    #     neg_gdf['hour'] = neg_gdf['発生日時'].dt.hour
-    #     neg_gdf['minute'] = neg_gdf['発生日時'].dt.minute
-    #     neg_gdf['is_holiday'] = neg_gdf['発生日時'].apply(lambda x: jpholiday.is_holiday(x))
-    #     neg_gdf['accident'] = 0  # ネガティブデータ
-    #     neg_gdf['road_shape'] = road_shape
-    #     neg_gdf['cluster'] = cluster_label
+        # その他の情報を追加
+        neg_gdf['weekday'] = neg_gdf['発生日時'].dt.weekday
+        neg_gdf['year'] = neg_gdf['発生日時'].dt.year
+        neg_gdf['month'] = neg_gdf['発生日時'].dt.month
+        neg_gdf['day'] = neg_gdf['発生日時'].dt.day
+        neg_gdf['hour'] = neg_gdf['発生日時'].dt.hour
+        neg_gdf['minute'] = neg_gdf['発生日時'].dt.minute
+        neg_gdf['is_holiday'] = neg_gdf['発生日時'].apply(lambda x: jpholiday.is_holiday(x))
+        neg_gdf['accident'] = 0  # ネガティブデータ
+        neg_gdf['road_shape'] = road_shape
+        neg_gdf['cluster'] = cluster_label
 
-    #     negative_samples_list.append(neg_gdf)
+        negative_samples_list.append(neg_gdf)
 
     # 全てのネガティブデータを結合
-    #negative_data = pd.concat(negative_samples_list, ignore_index=True)
+    negative_data = pd.concat(negative_samples_list, ignore_index=True)
 
-    # 結果を結合
-    negative_data = pd.concat(results, ignore_index=True)
-    
     # ネガティブデータのサンプルを表示
     print_samples(negative_data, "Negative Data")
 
