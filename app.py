@@ -34,8 +34,8 @@ app.logger.debug('DEBUG')
 api_key = os.environ.get('OPENWEATHERMAP_API_KEY')
 
 # モデルとラベルエンコーダーの読み込み
-model = joblib.load('accident_risk_model_date.pkl')
-label_encoders = joblib.load('label_encoders_date.pkl')
+model = joblib.load('accident_risk_model.pkl')
+label_encoders = joblib.load('label_encoders.pkl')
 
 # 日本標準時のタイムゾーンを取得
 jst = pytz.timezone('Asia/Tokyo')
