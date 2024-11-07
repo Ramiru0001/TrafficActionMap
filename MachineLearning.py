@@ -11,7 +11,7 @@ from shapely.geometry import Point, Polygon
 from shapely.ops import unary_union
 from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score,roc_curve, auc
 import joblib
 import jpholiday
 import psutil
@@ -127,7 +127,8 @@ def process_cluster(args):
 
     if len(negative_points) < num_neg_samples:
         print(f"警告: クラスター {(road_shape, cluster_label)} のネガティブデータが目標数に達しませんでした。生成数: {len(negative_points)}")
-
+        
+    aeqd_crs = CRS(proj='aeqd', lat_0=35, lon_0=136, datum='WGS84', units='m')
     # GeoDataFrame作成
     neg_gdf = gpd.GeoDataFrame({'geometry': negative_points}, crs=aeqd_crs)
     # 座標系をWGS84に変換
@@ -173,7 +174,7 @@ def process_cluster(args):
 
     # 発生日時を再構成
     neg_gdf['発生日時'] = adjusted_dates + pd.to_timedelta(neg_gdf['hour'], unit='h') + pd.to_timedelta(neg_gdf['minute'], unit='m')
-    neg_gdf['発生日時'] = neg_gdf['発生日時'].dt.tz_localize('Asia/Tokyo', ambiguous='NaT', nonexistent='shift_forward')
+    neg_gdf['発生日時'] = neg_gdf['発生日時'].dt.tz_convert('Asia/Tokyo')
 
     # '発生日時'を分単位に切り捨て
     neg_gdf['発生日時'] = neg_gdf['発生日時'].dt.floor('min')
@@ -235,8 +236,8 @@ if __name__ == "__main__":
         accident_data_2020 = pd.read_csv('TrafficAccidentMap_Data/read_codeChange/honhyo_2020.csv')
 
         # データの結合
-        accident_data = pd.concat([accident_data_2023], ignore_index=True)
-        #accident_data = pd.concat([accident_data_2023, accident_data_2022,accident_data_2021,accident_data_2020], ignore_index=True)
+        #accident_data = pd.concat([accident_data_2023], ignore_index=True)
+        accident_data = pd.concat([accident_data_2023, accident_data_2022,accident_data_2021,accident_data_2020], ignore_index=True)
 
         # 緯度・経度の欠損値を削除
         data = accident_data.dropna(subset=['地点　緯度（北緯）', '地点　経度（東経）'])
@@ -478,10 +479,13 @@ if __name__ == "__main__":
         # テストデータでの予測
         y_pred = model.predict(X_test)
         y_pred_proba = model.predict_proba(X_test)[:, 1]
-
+        fpr, tpr, thresholds = roc_curve(y_test, y_pred_proba)
+        roc_auc = auc(fpr, tpr)
+        
         # 評価指標の計算
         print(f"評価結果:")
         print(classification_report(y_test, y_pred))
+        print(f"ROC AUC: {roc_auc}")
         print(f"ROC AUC Score: {roc_auc_score(y_test, y_pred_proba)}")
         print(confusion_matrix(y_test, y_pred))
 
@@ -497,4 +501,4 @@ if __name__ == "__main__":
         print(f"エラー: {e}")
         traceback.print_exc()
 
-    print("プログラムがが完了しました。")
+    print("プログラムが完了しました。")

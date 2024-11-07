@@ -34,8 +34,8 @@ app.logger.debug('DEBUG')
 api_key = os.environ.get('OPENWEATHERMAP_API_KEY')
 
 # モデルとラベルエンコーダーの読み込み
-#model = joblib.load('accident_risk_model.pkl')
-#label_encoders = joblib.load('label_encoders.pkl')
+model = joblib.load('accident_risk_model.pkl')
+label_encoders = joblib.load('label_encoders.pkl')
 
 # 日本標準時のタイムゾーンを取得
 jst = pytz.timezone('Asia/Tokyo')
@@ -169,108 +169,108 @@ def get_risk_data():
     prediction_duration = data['prediction_duration']#予想時間(分)
     prediction_radius=data['prediction_radius']#予想半径(m)
 
-    # # datetime_str を datetime オブジェクトに変換
-    # date_time = datetime.datetime.fromisoformat(datetime_str)
-    # date_time = jst.localize(date_time)  # 日本時間に設定
+    # datetime_str を datetime オブジェクトに変換
+    date_time = datetime.datetime.fromisoformat(datetime_str)
+    date_time = jst.localize(date_time)  # 日本時間に設定
 
-    # # 予測する時間範囲を計算
-    # end_time = date_time + datetime.timedelta(minutes=prediction_duration)
+    # 予測する時間範囲を計算
+    end_time = date_time + datetime.timedelta(minutes=prediction_duration)
 
-    # # is_holiday をサーバー側で判定
-    # is_holiday = int(jpholiday.is_holiday(date_time.date()))
+    # is_holiday をサーバー側で判定
+    is_holiday = int(jpholiday.is_holiday(date_time.date()))
 
-    # month = date_time.month
-    # day = date_time.day
-    # hour = date_time.hour
-    # minute = date_time.minute
-    # weekday = date_time.weekday()
+    month = date_time.month
+    day = date_time.day
+    hour = date_time.hour
+    minute = date_time.minute
+    weekday = date_time.weekday()
 
-    # # 昼夜区分の計算
-    # day_night = get_day_night_code(latitude, longitude, date_time)
-    # # 天候区分の計算
-    # weather_code = get_weather_code(weather_str)
+    # 昼夜区分の計算
+    day_night = get_day_night_code(latitude, longitude, date_time)
+    # 天候区分の計算
+    weather_code = get_weather_code(weather_str)
 
-    # # クラスターの読み込み
-    # cluster_polygons_gdf = gpd.read_file('cluster_polygons.geojson')
-    # cluster_polygons_gdf = cluster_polygons_gdf.to_crs(epsg=4326)  # WGS84 座標系に変換
+    # クラスターの読み込み
+    cluster_polygons_gdf = gpd.read_file('cluster_polygons.geojson')
+    cluster_polygons_gdf = cluster_polygons_gdf.to_crs(epsg=4326)  # WGS84 座標系に変換
 
-    # # ユーザーの位置から指定された半径内のクラスターを取得
-    # user_location = Point(longitude, latitude)
-    # buffer_radius = prediction_radius / 1000  # メートルをキロメートルに変換
+    # ユーザーの位置から指定された半径内のクラスターを取得
+    user_location = Point(longitude, latitude)
+    buffer_radius = prediction_radius / 1000  # メートルをキロメートルに変換
 
-    # # ユーザーの位置をバッファリングして範囲を作成
-    # user_location_gdf = gpd.GeoDataFrame(geometry=[user_location], crs='EPSG:4326')
-    # user_location_buffer = user_location_gdf.to_crs(epsg=3857).buffer(prediction_radius).to_crs(epsg=4326).union_all()
+    # ユーザーの位置をバッファリングして範囲を作成
+    user_location_gdf = gpd.GeoDataFrame(geometry=[user_location], crs='EPSG:4326')
+    user_location_buffer = user_location_gdf.to_crs(epsg=3857).buffer(prediction_radius).to_crs(epsg=4326).union_all()
 
-    # # 範囲内のクラスターを取得
-    # clusters_in_area = cluster_polygons_gdf[cluster_polygons_gdf.intersects(user_location_buffer)]
+    # 範囲内のクラスターを取得
+    clusters_in_area = cluster_polygons_gdf[cluster_polygons_gdf.intersects(user_location_buffer)]
 
-    # if clusters_in_area.empty:
-    #     return jsonify({'riskData': [], 'message': '指定された範囲内にクラスターが存在しません。'})
+    if clusters_in_area.empty:
+        return jsonify({'riskData': [], 'message': '指定された範囲内にクラスターが存在しません。'})
 
-    # # 時間範囲内の時間を一定間隔で生成（例: 10分間隔）
-    # time_intervals = pd.date_range(start=date_time, end=end_time, freq='1T', tz=jst)
+    # 時間範囲内の時間を一定間隔で生成（例: 10分間隔）
+    time_intervals = pd.date_range(start=date_time, end=end_time, freq='1T', tz=jst)
 
-    # # 入力データを作成
-    # input_data_list = []
+    # 入力データを作成
+    input_data_list = []
 
-    # for idx, cluster_row in clusters_in_area.iterrows():
-    #     cluster_centroid = cluster_row['geometry'].centroid
-    #     cluster_lat = cluster_centroid.y
-    #     cluster_lon = cluster_centroid.x
-    #     road_shape = cluster_row['road_shape']
+    for idx, cluster_row in clusters_in_area.iterrows():
+        cluster_centroid = cluster_row['geometry'].centroid
+        cluster_lat = cluster_centroid.y
+        cluster_lon = cluster_centroid.x
+        road_shape = cluster_row['road_shape']
 
-    #     for current_time in time_intervals:
-    #         # 特徴量を計算
-    #         is_holiday = int(jpholiday.is_holiday(current_time.date()))
-    #         month = current_time.month
-    #         day = current_time.day
-    #         hour = current_time.hour
-    #         minute = current_time.minute
-    #         weekday = current_time.weekday()
-    #         day_night = get_day_night_code(cluster_lat, cluster_lon, current_time)
+        for current_time in time_intervals:
+            # 特徴量を計算
+            is_holiday = int(jpholiday.is_holiday(current_time.date()))
+            month = current_time.month
+            day = current_time.day
+            hour = current_time.hour
+            minute = current_time.minute
+            weekday = current_time.weekday()
+            day_night = get_day_night_code(cluster_lat, cluster_lon, current_time)
 
-    #         # 特徴量の辞書を作成
-    #         input_data = pd.DataFrame({
-    #             'latitude': cluster_lat,
-    #             'longitude': cluster_lon,
-    #             'month': month,
-    #             'day': day,
-    #             'hour': hour,
-    #             'minute': minute,
-    #             'weekday': weekday,
-    #             'is_holiday': is_holiday,
-    #             '昼夜区分': day_night,
-    #             '天候区分': weather_code,
-    #             'road_shape': road_shape
-    #         }) 
-    #         input_data_list.append(input_data)
+            # 特徴量の辞書を作成
+            input_data = pd.DataFrame({
+                'latitude': cluster_lat,
+                'longitude': cluster_lon,
+                'month': month,
+                'day': day,
+                'hour': hour,
+                'minute': minute,
+                'weekday': weekday,
+                'is_holiday': is_holiday,
+                '昼夜区分': day_night,
+                '天候区分': weather_code,
+                'road_shape': road_shape
+            }) 
+            input_data_list.append(input_data)
 
-    # # 入力データフレームを作成
-    # input_df = pd.DataFrame(input_data_list)
+    # 入力データフレームを作成
+    input_df = pd.DataFrame(input_data_list)
     
-    # # カテゴリ変数のエンコード
-    # for column in ['昼夜区分', '天候区分','road_shape']:
-    #     le = label_encoders[column]
-    #     input_data[column] = le.transform(input_df[column])
+    # カテゴリ変数のエンコード
+    for column in ['昼夜区分', '天候区分','road_shape']:
+        le = label_encoders[column]
+        input_data[column] = le.transform(input_df[column])
 
-    # # 'is_holiday'を数値に変換
-    # input_df['is_holiday'] = input_df['is_holiday'].astype(int)
+    # 'is_holiday'を数値に変換
+    input_df['is_holiday'] = input_df['is_holiday'].astype(int)
 
-    # # フィーチャーの順序を訓練時と一致させる
-    # feature_columns = ['latitude', 'longitude', 'month', 'day', 'hour', 'minute',  'weekday', '昼夜区分', '天候区分', 'is_holiday','road_shape']
-    # input_df = input_df[feature_columns]
+    # フィーチャーの順序を訓練時と一致させる
+    feature_columns = ['latitude', 'longitude', 'month', 'day', 'hour', 'minute',  'weekday', '昼夜区分', '天候区分', 'is_holiday','road_shape']
+    input_df = input_df[feature_columns]
 
-    # 事故リスクの予測
-    # risk_scores = model.predict_proba(input_df)[:, 1]
-    # input_df['accident'] = risk_scores
+    #事故リスクの予測
+    risk_scores = model.predict_proba(input_df)[:, 1]
+    input_df['accident'] = risk_scores
     
-    # # 結果を集計（同じクラスターについて平均を取る）
-    # risk_summary = input_df.groupby(['latitude', 'longitude']).agg({'accident': 'mean'}).reset_index()
+    # 結果を集計（同じクラスターについて平均を取る）
+    risk_summary = input_df.groupby(['latitude', 'longitude']).agg({'accident': 'mean'}).reset_index()
 
-    # # リスクスコアと位置情報を取得
-    # risk_data = risk_summary.to_dict(orient='records')
-    # print(f"リスクデータ：{risk_data}")
+    # リスクスコアと位置情報を取得
+    risk_data = risk_summary.to_dict(orient='records')
+    print(f"リスクデータ：{risk_data}")
     risk_data={}
     # 結果をクライアントに返す
     return jsonify({
