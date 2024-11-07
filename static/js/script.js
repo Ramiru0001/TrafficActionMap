@@ -315,7 +315,7 @@ function getRiskData() {
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('リスクデータの取得に失敗しました。');
+            //alert('リスクデータの取得に失敗しました。');
         });
     } catch(e) {
         alert( e.message );

@@ -93,7 +93,7 @@ def print_samples(df, name, num_samples=5):
     print(df[['latitude', 'longitude', '天候区分', '昼夜区分', 'weekday', 'is_holiday', 'road_shape', '発生日時']].sample(num_samples, random_state=42))
 
 # ネガティブポイント生成関数
-def generate_random_points(polygon, num_points,accident_tree, accident_points_list):
+def generate_random_points(polygon, num_points,accident_tree):
     minx, miny, maxx, maxy = polygon.bounds
     points = []
     while len(points) < num_points:
@@ -107,7 +107,7 @@ def generate_random_points(polygon, num_points,accident_tree, accident_points_li
         # 重複を排除
         unique_points = within_polygon[~within_polygon.isin(points)]
         # ポジティブポイントとの重複を排除
-        unique_points = unique_points[~unique_points.apply(lambda p: is_duplicate(p, accident_tree, accident_points_list))]
+        unique_points = unique_points[~unique_points.apply(lambda p: is_duplicate(p, accident_tree))]
         points.extend(unique_points.tolist())
         if len(points) >= num_points:
             break
@@ -123,7 +123,7 @@ def process_cluster(args):
     
     # ネガティブデータの数を設定
     num_neg_samples = len(group) * 3
-    negative_points = generate_random_points(cluster_polygon, num_neg_samples,accident_tree, accident_points_list)
+    negative_points = generate_random_points(cluster_polygon, num_neg_samples,accident_tree)
 
     if len(negative_points) < num_neg_samples:
         print(f"警告: クラスター {(road_shape, cluster_label)} のネガティブデータが目標数に達しませんでした。生成数: {len(negative_points)}")
@@ -235,7 +235,8 @@ if __name__ == "__main__":
         accident_data_2020 = pd.read_csv('TrafficAccidentMap_Data/read_codeChange/honhyo_2020.csv')
 
         # データの結合
-        accident_data = pd.concat([accident_data_2023, accident_data_2022,accident_data_2021,accident_data_2020], ignore_index=True)
+        accident_data = pd.concat([accident_data_2023], ignore_index=True)
+        #accident_data = pd.concat([accident_data_2023, accident_data_2022,accident_data_2021,accident_data_2020], ignore_index=True)
 
         # 緯度・経度の欠損値を削除
         data = accident_data.dropna(subset=['地点　緯度（北緯）', '地点　経度（東経）'])
