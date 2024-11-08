@@ -185,6 +185,7 @@ def process_cluster(args):
     # 月を取得
     neg_gdf['month'] = neg_gdf['発生日時'].dt.month
 
+    #編集　被ってたら変更
     # 天候区分割り当て
     # 天候を月ごとの分布からサンプリング
     def assign_weather(row):
@@ -400,9 +401,6 @@ if __name__ == "__main__":
         # UTCに変換してタイムスタンプを取得
         date_min_timestamp = date_min.tz_convert('UTC').timestamp()
         date_max_timestamp = date_max.tz_convert('UTC').timestamp()
-
-        # ネガティブデータを保持するリスト
-        negative_samples_list = []
         
         # ポジティブデータの空間インデックス作成
         accident_points_list = list(clustered_data['geometry'])
@@ -440,7 +438,7 @@ if __name__ == "__main__":
         negative_data = negative_data.to_crs('EPSG:4326')
 
         # 必要なカラムを選択
-        features = ['latitude', 'longitude', 'month', 'day', 'hour', 'minute','weekday', '昼夜区分', '天候区分', 'is_holiday','road_shape']
+        features = ['latitude', 'longitude', 'month', 'day', 'hour','minute','weekday', '昼夜区分', '天候区分', 'is_holiday','road_shape']
         target = 'accident'
 
         # カテゴリ変数のラベルエンコーディング
@@ -479,16 +477,13 @@ if __name__ == "__main__":
         # テストデータでの予測
         y_pred = model.predict(X_test)
         y_pred_proba = model.predict_proba(X_test)[:, 1]
-        fpr, tpr, thresholds = roc_curve(y_test, y_pred_proba)
-        roc_auc = auc(fpr, tpr)
         
         # 評価指標の計算
         print(f"評価結果:")
         print(classification_report(y_test, y_pred))
-        print(f"ROC AUC: {roc_auc}")
         print(f"ROC AUC Score: {roc_auc_score(y_test, y_pred_proba)}")
         print(confusion_matrix(y_test, y_pred))
-
+        
         # モデルの保存
         model_filename = f'accident_risk_model.pkl'
         joblib.dump(model, model_filename)
