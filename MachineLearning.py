@@ -119,9 +119,7 @@ def is_duplicate(point, tree):
 
 # クラスター処理関数（並列用）
 def process_cluster(args):
-    (road_width, road_alignment, road_shape, cluster_label, group, cluster_polygon, accident_tree, date_min_timestamp,
-     date_max_timestamp, hour_distribution, minute_distribution, weekday_distribution, weather_distributions_per_month,
-     weather_distribution_overall, positive_data_group) = args
+    (road_width, road_alignment, road_shape, cluster_label, group, cluster_polygon, accident_tree, date_min_timestamp,date_max_timestamp, hour_distribution, minute_distribution, weekday_distribution, weather_distributions_per_month,weather_distribution_overall, positive_data_group) = args
 
     # ネガティブデータの数を設定
     num_neg_samples = len(group) * 3
@@ -139,112 +137,127 @@ def process_cluster(args):
     neg_gdf['longitude'] = neg_gdf.geometry.x
     neg_gdf['latitude'] = neg_gdf.geometry.y
 
-    # ネガティブデータの情報を保持するリスト
-    negative_samples = []
     max_attempts = 10  # 再試行の最大回数
+    attempts = 0
 
-    for idx in range(len(neg_gdf)):
-        attempts = 0
-        while attempts < max_attempts:
-            # ランダムに日時を生成
-            sampled_weekday = np.random.choice(
-                weekday_distribution.index,
-                p=weekday_distribution.values
-            )
+    while attempts < max_attempts:
+        # ネガティブデータの曜日をポジティブデータの分布に基づいてサンプリング
+        sampled_weekdays = np.random.choice(
+            weekday_distribution.index,
+            size=num_neg_samples,
+            p=weekday_distribution.values
+        )
 
-            random_date = pd.to_datetime(
-                np.random.uniform(date_min_timestamp, date_max_timestamp, 1),
-                unit='s', utc=True
-            ).tz_convert('Asia/Tokyo')
+        # ランダムな日付を生成
+        random_dates = pd.to_datetime(
+            np.random.uniform(date_min_timestamp, date_max_timestamp, num_neg_samples),
+            unit='s', utc=True
+        ).tz_convert('Asia/Tokyo')
 
-            # 曜日を調整
-            current_weekday = random_date.weekday()
-            days_difference = (sampled_weekday - current_weekday) % 7
-            adjusted_date = random_date + pd.Timedelta(days=days_difference)
+        # 曜日を調整
+        # current_weekdays = random_dates.weekday
+        # days_differences = (sampled_weekdays - current_weekdays) % 7
+        # adjusted_dates = random_dates + pd.Timedelta(days=days_differences,unit='D')
 
-            hour = np.random.choice(
-                hour_distribution.index,
-                p=hour_distribution.values
-            )
-            minute = np.random.choice(
-                minute_distribution.index,
-                p=minute_distribution.values
-            )
+        # ランダムな日付を対応する曜日に調整
+        adjusted_dates = []
+        for date, target_weekday in zip(random_dates, sampled_weekdays):
+            current_weekday = date.weekday()
+            days_difference = (target_weekday - current_weekday) % 7
+            adjusted_date = date + pd.Timedelta(days=days_difference)
+            adjusted_dates.append(adjusted_date)
+        adjusted_dates = pd.to_datetime(adjusted_dates)
 
-            # 発生日時を再構成
-            occurrence_time = adjusted_date + pd.Timedelta(hours=hour, minutes=minute)
-            occurrence_time = occurrence_time.tz_localize('Asia/Tokyo', ambiguous='NaT', nonexistent='shift_forward')
 
-            # 月を取得
-            month = occurrence_time.month
+        # 時間と分をポジティブデータの分布からサンプリング
+        neg_gdf['hour'] = np.random.choice(
+            hour_distribution.index,
+            size=len(neg_gdf),
+            p=hour_distribution.values
+        )
+        neg_gdf['minute'] = np.random.choice(
+            minute_distribution.index,
+            size=len(neg_gdf),
+            p=minute_distribution.values
+        )
 
-            # 天候を割り当て
-            weather_distribution = weather_distributions_per_month.get(month, weather_distribution_overall)
-            weather = np.random.choice(
-                weather_distribution.index,
-                p=weather_distribution.values
-            )
+        # 発生日時を再構成
+        neg_gdf['発生日時'] = adjusted_dates + pd.to_timedelta(neg_gdf['hour'], unit='h') + pd.to_timedelta(neg_gdf['minute'], unit='m')
+        neg_gdf['発生日時'] = neg_gdf['発生日時'].dt.tz_convert('Asia/Tokyo')
 
-            # 昼夜区分計算
-            day_night_code = get_day_night_code(neg_gdf.loc[idx, 'latitude'], neg_gdf.loc[idx, 'longitude'], occurrence_time)
-            day_night = map_day_night(day_night_code)
-
-            # このネガティブデータの特徴量
-            negative_sample = {
-                'latitude': neg_gdf.loc[idx, 'latitude'],
-                'longitude': neg_gdf.loc[idx, 'longitude'],
-                '発生日時': occurrence_time,
-                'weekday': occurrence_time.weekday(),
-                'year': occurrence_time.year,
-                'month': occurrence_time.month,
-                'day': occurrence_time.day,
-                'hour': occurrence_time.hour,
-                'minute': occurrence_time.minute,
-                '天候区分': weather,
-                '昼夜区分': day_night,
-                'is_holiday': int(jpholiday.is_holiday(occurrence_time)),
-                'accident': 0,
-                'road_width': road_width,
-                'road_alignment': road_alignment,
-                'road_shape': road_shape,
-                'cluster': cluster_label,
-                'geometry': neg_gdf.loc[idx, 'geometry']
-            }
-
-            # 同一地点のポジティブデータと比較
-            same_location_positive = positive_data_group[
-                (positive_data_group['latitude'] == negative_sample['latitude']) &
-                (positive_data_group['longitude'] == negative_sample['longitude'])
-            ]
-
-            conflict_with_positive = same_location_positive[
-                (same_location_positive['month'] == negative_sample['month']) &
-                (same_location_positive['day'] == negative_sample['day']) &
-                (same_location_positive['hour'] == negative_sample['hour']) &
-                (same_location_positive['weekday'] == negative_sample['weekday']) &
-                (same_location_positive['天候区分'] == negative_sample['天候区分'])
-            ]
-
-            # 既に生成したネガティブデータと比較
-            conflict_with_negative = [ns for ns in negative_samples if
-                                      (ns['month'] == negative_sample['month']) and
-                                      (ns['day'] == negative_sample['day']) and
-                                      (ns['hour'] == negative_sample['hour']) and
-                                      (ns['weekday'] == negative_sample['weekday']) and
-                                      (ns['天候区分'] == negative_sample['天候区分'])
-                                     ]
-
-            if conflict_with_positive.empty and not conflict_with_negative:
-                negative_samples.append(negative_sample)
-                break  # 次のデータへ
+        neg_gdf['month'] = neg_gdf['発生日時'].dt.month
+        
+        # 天候区分割り当て
+        # 天候を月ごとの分布からサンプリング
+        def assign_weather(row):
+            month = row['month']
+            weather_distribution = weather_distributions_per_month.get(month)
+            if weather_distribution is not None and len(weather_distribution) > 0:
+                return np.random.choice(
+                    weather_distribution.index,
+                    p=weather_distribution.values
+                )
             else:
-                attempts += 1  # 再試行
+                # データがない場合は全体の分布からサンプリング
+                return np.random.choice(
+                    weather_distribution_overall.index,
+                    p=weather_distribution_overall.values
+                )
+        
+        neg_gdf['天候区分'] = neg_gdf.apply(assign_weather, axis=1)
 
-    # ネガティブデータをDataFrameに変換
-    neg_samples_df = pd.DataFrame(negative_samples)
-    neg_samples_gdf = gpd.GeoDataFrame(neg_samples_df, geometry='geometry', crs='EPSG:4326')
+        # 昼夜区分計算
+        neg_gdf['昼夜区分'] = neg_gdf.apply(
+            lambda row: get_day_night_code(row['latitude'], row['longitude'], row['発生日時']),
+            axis=1
+        )
+        neg_gdf['昼夜区分'] = neg_gdf['昼夜区分'].apply(map_day_night)
 
-    return neg_samples_gdf
+        # その他の情報を追加
+        neg_gdf['accident'] = 0  # ネガティブデータ
+        neg_gdf['road_width'] = road_width
+        neg_gdf['road_alignment'] = road_alignment
+        neg_gdf['road_shape'] = road_shape
+        neg_gdf['cluster'] = cluster_label
+        neg_gdf['weekday'] = neg_gdf['発生日時'].dt.weekday
+        neg_gdf['year'] = neg_gdf['発生日時'].dt.year
+        neg_gdf['month'] = neg_gdf['発生日時'].dt.month
+        neg_gdf['day'] = neg_gdf['発生日時'].dt.day
+        neg_gdf['hour'] = neg_gdf['発生日時'].dt.hour
+        neg_gdf['minute'] = neg_gdf['発生日時'].dt.minute
+        neg_gdf['is_holiday'] = neg_gdf['発生日時'].apply(lambda x: jpholiday.is_holiday(x))
+
+        # 重複チェック
+        # ポジティブデータとの重複をチェック
+        merged_positive = pd.merge(
+            neg_gdf,
+            positive_data_group,
+            on=['latitude', 'longitude', 'month', 'day', 'hour', 'weekday', '天候区分'],
+            how='inner'
+        )
+
+        # ネガティブデータ内での重複をチェック
+        duplicated_negatives = neg_gdf.duplicated(subset=['latitude', 'longitude', 'month', 'day', 'hour', 'weekday', '天候区分'], keep=False)
+
+        # 重複していないデータを抽出
+        non_conflicting_negatives = neg_gdf[~neg_gdf.index.isin(merged_positive.index) & ~duplicated_negatives]
+
+        # 重複しているデータを再生成
+        conflicting_indices = neg_gdf.index.difference(non_conflicting_negatives.index)
+        if len(conflicting_indices) == 0:
+            # 重複がなくなったらループを抜ける
+            neg_gdf = non_conflicting_negatives
+            break
+        else:
+            # 再試行のために重複したデータのみを更新
+            neg_gdf = neg_gdf.copy()
+            neg_gdf.loc[conflicting_indices, '発生日時'] = None  # 発生日時をリセット
+            attempts += 1
+
+    if attempts >= max_attempts:
+        print(f"警告: クラスター {(road_width, road_alignment, road_shape, cluster_label)} で重複のないネガティブデータを生成できませんでした。")
+
+    return neg_gdf
 
 
 if __name__ == "__main__":
@@ -258,8 +271,8 @@ if __name__ == "__main__":
         accident_data_2020 = pd.read_csv('TrafficAccidentMap_Data/read_codeChange/honhyo_2020.csv')
 
         # データの結合
-        #accident_data = pd.concat([accident_data_2023], ignore_index=True)
-        accident_data = pd.concat([accident_data_2023, accident_data_2022,accident_data_2021,accident_data_2020], ignore_index=True)
+        accident_data = pd.concat([accident_data_2023], ignore_index=True)
+        #accident_data = pd.concat([accident_data_2023, accident_data_2022,accident_data_2021,accident_data_2020], ignore_index=True)
 
         # 緯度・経度の欠損値を削除
         data = accident_data.dropna(subset=['地点　緯度（北緯）', '地点　経度（東経）'])
