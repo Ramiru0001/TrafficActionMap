@@ -271,9 +271,10 @@ if __name__ == "__main__":
         accident_data_2020 = pd.read_csv('TrafficAccidentMap_Data/read_codeChange/honhyo_2020.csv')
 
         # データの結合
-        accident_data = pd.concat([accident_data_2023], ignore_index=True)
-        #accident_data = pd.concat([accident_data_2023, accident_data_2022,accident_data_2021,accident_data_2020], ignore_index=True)
-
+        #accident_data = pd.concat([accident_data_2023], ignore_index=True)
+        # print(f"1年分のデータを使用します。")
+        accident_data = pd.concat([accident_data_2023, accident_data_2022,accident_data_2021,accident_data_2020], ignore_index=True)
+        print(f"4年分のデータを使用します。")
         # 緯度・経度の欠損値を削除
         data = accident_data.dropna(subset=['地点　緯度（北緯）', '地点　経度（東経）'])
 
