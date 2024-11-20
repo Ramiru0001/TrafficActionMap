@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <title>事故リスクマップ</title>
     <!-- CSSファイルの読み込み -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <!-- LeafletのCSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 </head>
@@ -34,15 +34,7 @@
 
         <!-- 時間の入力 -->
         <label for="time">時間：</label>
-        <input type="time" id="time" name="time"><br>
-
-        <!-- 予測時間間隔の選択リストを追加 -->
-        <label for="prediction_duration">予測時間：</label>
-        <select id="prediction_duration" name="prediction_duration">
-            <option value="10">10分</option>
-            <option value="30">30分</option>
-            <option value="60">60分</option>
-        </select><br>
+        <input type="number" id="time" name="time" min="0" max="23" placeholder="時（0-23）"><br>
         
         <!-- 半径予想範囲の選択式を追加 -->
         <label for="prediction_radius">半径予想範囲：</label>
@@ -59,14 +51,31 @@
             <label for="prediction_radius_input">半径予想範囲 (m)：</label>
             <input type="number" id="prediction_radius_input" name="prediction_radius_input" min="100" max="5000" step="100" placeholder="例: 2500">
         </div><br>
+
+        <!-- 分析中メッセージ -->
+        <div id="loadingMessage" style="display: none; position: absolute; top: 10px; left: 10px; background-color: rgba(255, 255, 255, 0.8); padding: 10px; border: 1px solid #ccc; z-index: 1000;">
+            分析中...
+        </div>
+        <!-- 色と確率の凡例 -->
+        <div id="legend" style="position: absolute; bottom: 10px; right: 10px; background-color: rgba(255, 255, 255, 0.8); padding: 10px; border: 1px solid #ccc; z-index: 1000;">
+            <h4>確率凡例</h4>
+            <ul style="list-style: none; padding: 0; margin: 0;">
+                <li><span style="background-color: red; display: inline-block; width: 20px; height: 20px; margin-right: 5px;"></span> 高 (> 0.8)</li>
+                <li><span style="background-color: orange; display: inline-block; width: 20px; height: 20px; margin-right: 5px;"></span> 中 (0.5 - 0.8)</li>
+                <li><span style="background-color: green; display: inline-block; width: 20px; height: 20px; margin-right: 5px;"></span> 低 (< 0.5)</li>
+            </ul>
+        </div>
         <button type="button" onclick="getRiskData()">リスクマップを表示</button>
         <button type="button" onclick="resetall()">現在の情報を表示</button>
+
     </form>
 
     <!-- 地図の表示領域 -->
     <div id="map" style="width: 100%; height: 500px;"></div>
     <!-- LeafletのJavaScript -->
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <!-- Leaflet Heatmap Plugin -->
+    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
     <!-- JavaScriptファイルの読み込み -->
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
     
@@ -88,14 +97,7 @@
             // 時間入力欄に現在の時間を設定
             var timeInput = document.getElementById('time');
             var hours = ('0' + now.getHours()).slice(-2);
-            var minutes = ('0' + now.getMinutes()).slice(-2);
-            timeInput.value = hours + ':' + minutes;
-
-            // 祝日情報を更新
-            //checkHoliday();
-
-            // 日付入力欄の変更イベントリスナーを追加
-            //dateInput.addEventListener('change', checkHoliday);
+            timeInput.value = hours;
 
             // ページが読み込まれたときにイベントリスナーを設定
             var predictionRadiusSelect = document.getElementById('prediction_radius');

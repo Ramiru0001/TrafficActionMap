@@ -128,16 +128,17 @@ def is_duplicate(point, tree):
     possible_duplicates = tree.query(point)
     return any(point.equals(p) for p in possible_duplicates)
 
-# クラスター処理関数（並列用）
 def process_cluster(args):
-    road_shape, cluster_label, group, cluster_polygon, accident_tree, accident_points_list,weather_distribution_overall, date_min_timestamp, date_max_timestamp,hour_distribution,minute_distribution,weather_distributions_per_month,weekday_distribution = args
-    
+    (road_width, road_alignment, road_shape, cluster_label, group, cluster_polygon, accident_tree, date_min_timestamp, date_max_timestamp, hour_distribution, minute_distribution, weekday_distribution, weather_distributions_per_month, weather_distribution_overall, positive_data_group) = args
+
     # ネガティブデータの数を設定
     num_neg_samples = len(group) * 3
-    negative_points = generate_random_points(cluster_polygon, num_neg_samples,accident_tree)
+
+    # 初期のネガティブポイントを一括生成
+    negative_points = generate_random_points(cluster_polygon, num_neg_samples, accident_tree)
 
     if len(negative_points) < num_neg_samples:
-        print(f"警告: クラスター {(road_shape, cluster_label)} のネガティブデータが目標数に達しませんでした。生成数: {len(negative_points)}")
+        print(f"警告: クラスター {(road_width, road_alignment, road_shape, cluster_label)} のネガティブデータが目標数に達しませんでした。生成数: {len(negative_points)}")
         
     aeqd_crs = CRS(proj='aeqd', lat_0=35, lon_0=136, datum='WGS84', units='m')
     # GeoDataFrame作成
@@ -148,93 +149,132 @@ def process_cluster(args):
     neg_gdf['longitude'] = neg_gdf.geometry.x
     neg_gdf['latitude'] = neg_gdf.geometry.y
 
-    # ネガティブデータの曜日をポジティブデータの分布に基づいてサンプリング
-    sampled_weekdays = np.random.choice(
-        weekday_distribution.index,
-        size=num_neg_samples,
-        p=weekday_distribution.values
-    )
+    max_attempts = 10  # 再試行の最大回数
+    attempts = 0
 
-    # ランダムな日付を生成
-    random_dates = pd.to_datetime(
-        np.random.uniform(date_min_timestamp, date_max_timestamp, num_neg_samples),
-        unit='s', utc=True
-    ).tz_convert('Asia/Tokyo')
+    # ネガティブデータの特徴量を一括で生成
+    while attempts < max_attempts:
+        # 発生日時関連の特徴量をサンプリング
+        sampled_weekdays = np.random.choice(
+            weekday_distribution.index,
+            size=len(neg_gdf),
+            p=weekday_distribution.values
+        )
 
-    # ランダムな日付を対応する曜日に調整
-    adjusted_dates = []
-    for date, target_weekday in zip(random_dates, sampled_weekdays):
-        current_weekday = date.weekday()
-        days_difference = (target_weekday - current_weekday) % 7
-        adjusted_date = date + pd.Timedelta(days=days_difference)
-        adjusted_dates.append(adjusted_date)
-    adjusted_dates = pd.to_datetime(adjusted_dates)
+        random_dates = pd.to_datetime(
+            np.random.uniform(date_min_timestamp, date_max_timestamp, size=len(neg_gdf)),
+            unit='s', utc=True
+        ).tz_convert('Asia/Tokyo')
 
+        # 曜日を調整
+        # current_weekdays = random_dates.weekday
+        # days_differences = (sampled_weekdays - current_weekdays) % 7
+        # adjusted_dates = random_dates + pd.to_timedelta(days_differences, unit='D')
 
-    # 時間と分をポジティブデータの分布からサンプリング
-    neg_gdf['hour'] = np.random.choice(
-        hour_distribution.index,
-        size=len(neg_gdf),
-        p=hour_distribution.values
-    )
-    neg_gdf['minute'] = np.random.choice(
-        minute_distribution.index,
-        size=len(neg_gdf),
-        p=minute_distribution.values
-    )
+         # ランダムな日付を対応する曜日に調整
+        adjusted_dates = []
+        for date, target_weekday in zip(random_dates, sampled_weekdays):
+            current_weekday = date.weekday()
+            days_difference = (target_weekday - current_weekday) % 7
+            adjusted_date = date + pd.Timedelta(days=days_difference)
+            adjusted_dates.append(adjusted_date)
+        adjusted_dates = pd.to_datetime(adjusted_dates)
 
-    # 発生日時を再構成
-    neg_gdf['発生日時'] = adjusted_dates + pd.to_timedelta(neg_gdf['hour'], unit='h') + pd.to_timedelta(neg_gdf['minute'], unit='m')
-    neg_gdf['発生日時'] = neg_gdf['発生日時'].dt.tz_convert('Asia/Tokyo')
+        # 時間と分をサンプリング
+        neg_gdf['hour'] = np.random.choice(
+            hour_distribution.index,
+            size=len(neg_gdf),
+            p=hour_distribution.values
+        )
+        neg_gdf['minute'] = np.random.choice(
+            minute_distribution.index,
+            size=len(neg_gdf),
+            p=minute_distribution.values
+        )
 
-    # '発生日時'を分単位に切り捨て
-    neg_gdf['発生日時'] = neg_gdf['発生日時'].dt.floor('min')
+        # 発生日時を再構成
+        neg_gdf['発生日時'] = adjusted_dates + pd.to_timedelta(neg_gdf['hour'], unit='h') + pd.to_timedelta(neg_gdf['minute'], unit='m')
+        neg_gdf['発生日時'] = neg_gdf['発生日時'].dt.tz_convert('Asia/Tokyo')
 
-    # 曜日を再計算
-    neg_gdf['weekday'] = neg_gdf['発生日時'].dt.weekday
+        # その他の特徴量を計算
+        neg_gdf['weekday'] = neg_gdf['発生日時'].dt.weekday
+        neg_gdf['year'] = neg_gdf['発生日時'].dt.year
+        neg_gdf['month'] = neg_gdf['発生日時'].dt.month
+        neg_gdf['day'] = neg_gdf['発生日時'].dt.day
+        neg_gdf['is_holiday'] = neg_gdf['発生日時'].apply(lambda x: jpholiday.is_holiday(x))
 
-    # 月を取得
-    neg_gdf['month'] = neg_gdf['発生日時'].dt.month
+        # 天候区分割り当て
+        # 天候を月ごとの分布からサンプリング
+        def assign_weather(row):
+            month = row['month']
+            weather_distribution = weather_distributions_per_month.get(month)
+            if weather_distribution is not None and len(weather_distribution) > 0:
+                return np.random.choice(
+                    weather_distribution.index,
+                    p=weather_distribution.values
+                )
+            else:
+                # データがない場合は全体の分布からサンプリング
+                return np.random.choice(
+                    weather_distribution_overall.index,
+                    p=weather_distribution_overall.values
+                )
+        
+        neg_gdf['天候区分'] = neg_gdf.apply(assign_weather, axis=1)
 
-    # 天候区分割り当て
-    # 天候を月ごとの分布からサンプリング
-    def assign_weather(row):
-        month = row['month']
-        weather_distribution = weather_distributions_per_month.get(month)
-        if weather_distribution is not None and len(weather_distribution) > 0:
-            return np.random.choice(
-                weather_distribution.index,
-                p=weather_distribution.values
-            )
+        # 昼夜区分計算
+        neg_gdf['昼夜区分'] = neg_gdf.apply(
+            lambda row: get_day_night_code(row['latitude'], row['longitude'], row['発生日時']),
+            axis=1
+        )
+        neg_gdf['昼夜区分'] = neg_gdf['昼夜区分'].apply(map_day_night)
+
+        # その他の情報を追加
+        neg_gdf['accident'] = 0  # ネガティブデータ
+        neg_gdf['road_width'] = road_width
+        neg_gdf['road_alignment'] = road_alignment
+        neg_gdf['road_shape'] = road_shape
+        neg_gdf['cluster'] = cluster_label
+        neg_gdf['weekday'] = neg_gdf['発生日時'].dt.weekday
+        neg_gdf['year'] = neg_gdf['発生日時'].dt.year
+        neg_gdf['month'] = neg_gdf['発生日時'].dt.month
+        neg_gdf['day'] = neg_gdf['発生日時'].dt.day
+        neg_gdf['hour'] = neg_gdf['発生日時'].dt.hour
+        neg_gdf['minute'] = neg_gdf['発生日時'].dt.minute
+        neg_gdf['is_holiday'] = neg_gdf['発生日時'].apply(lambda x: jpholiday.is_holiday(x))
+
+        # 重複チェック
+        # ポジティブデータとの重複をチェック
+        merged_positive = pd.merge(
+            neg_gdf,
+            positive_data_group,
+            on=['latitude', 'longitude', 'month', 'day', 'hour', 'weekday', '天候区分'],
+            how='inner'
+        )
+
+        # ネガティブデータ内での重複をチェック
+        duplicated_negatives = neg_gdf.duplicated(subset=['latitude', 'longitude', 'month', 'day', 'hour', 'weekday', '天候区分'], keep=False)
+
+        # 重複していないデータを抽出
+        non_conflicting_negatives = neg_gdf[~neg_gdf.index.isin(merged_positive.index) & ~duplicated_negatives]
+
+        # 重複しているデータを再生成
+        conflicting_indices = neg_gdf.index.difference(non_conflicting_negatives.index)
+        if len(conflicting_indices) == 0:
+            # 重複がなくなったらループを抜ける
+            neg_gdf = non_conflicting_negatives
+            break
         else:
-            # データがない場合は全体の分布からサンプリング
-            return np.random.choice(
-                weather_distribution_overall.index,
-                p=weather_distribution_overall.values
-            )
-    
-    neg_gdf['天候区分'] = neg_gdf.apply(assign_weather, axis=1)
+            # 再試行のために重複したデータのみを更新
+            neg_gdf = neg_gdf.copy()
+            neg_gdf.loc[conflicting_indices, '発生日時'] = None  # 発生日時をリセット
+            attempts += 1
 
-    # 昼夜区分計算
-    neg_gdf['昼夜区分'] = neg_gdf.apply(
-        lambda row: get_day_night_code(row['latitude'], row['longitude'], row['発生日時']),
-        axis=1
-    )
-    neg_gdf['昼夜区分'] = neg_gdf['昼夜区分'].apply(map_day_night)
-
-    # その他の特徴量追加
-    neg_gdf['weekday'] = neg_gdf['発生日時'].dt.weekday
-    neg_gdf['year'] = neg_gdf['発生日時'].dt.year
-    neg_gdf['month'] = neg_gdf['発生日時'].dt.month
-    neg_gdf['day'] = neg_gdf['発生日時'].dt.day
-    neg_gdf['hour'] = neg_gdf['発生日時'].dt.hour
-    neg_gdf['minute'] = neg_gdf['発生日時'].dt.minute
-    neg_gdf['is_holiday'] = neg_gdf['発生日時'].apply(lambda x: jpholiday.is_holiday(x))
-    neg_gdf['accident'] = 0  # ネガティブデータ
-    neg_gdf['road_shape'] = road_shape
-    neg_gdf['cluster'] = cluster_label
+    if attempts >= max_attempts:
+        print(f"警告: クラスター {(road_width, road_alignment, road_shape, cluster_label)} で重複のないネガティブデータを生成できませんでした。")
 
     return neg_gdf
+
 
 if __name__ == "__main__":
     # 1. 2021年の事故データを読み込む
@@ -255,10 +295,14 @@ if __name__ == "__main__":
         '発生日時　　日': 'day',
         '発生日時　　時': 'hour',
         '発生日時　　分': 'minute',
-        '道路形状': 'road_shape'  # '道路形状' 列をリネーム
+        '道路形状': 'road_shape',  # '道路形状' 列をリネーム
+        '車道幅員': 'road_width',          # '車道幅員' 列をリネーム
+        '道路線形': 'road_alignment'  # '道路線形' 列をリネーム
     })
 
     data['発生日時'] = pd.to_datetime(data[['year', 'month', 'day', 'hour', 'minute']])
+    data = data.dropna(subset=['発生日時'])
+    data['発生日時'] = data['発生日時'].dt.tz_localize('Asia/Tokyo')
 
     # 日時関連の特徴量を作成
     data['weekday'] = data['発生日時'].dt.weekday # 月曜日=0, 日曜日=6
@@ -272,6 +316,8 @@ if __name__ == "__main__":
     data['天候'] = data['天候'].fillna(UNKNOWN_WEATHER_CODE)
     data['昼夜'] = data['昼夜'].fillna(UNKNOWN_DAY_NIGHT_CODE)
     data['road_shape'] = data['road_shape'].fillna('不明')  # '道路形状' の欠損値を '不明' に置換
+    data['road_width'] = data['road_width'].fillna('不明')
+    data['road_alignment'] = data['road_alignment'].fillna('不明')
 
     # 昼夜区分の作成
     data['天候区分'] = data['天候'].apply(map_weather)
@@ -304,8 +350,14 @@ if __name__ == "__main__":
     assigned_clusters = []
     for idx, accident_point in data_positive_gdf.iterrows():
         point = accident_point.geometry
+        road_width = accident_point['road_width']
+        road_alignment = accident_point['road_alignment']
         road_shape = accident_point['road_shape']
-        possible_clusters = cluster_polygons_gdf[cluster_polygons_gdf['road_shape'] == road_shape]
+        possible_clusters = cluster_polygons_gdf[
+            (cluster_polygons_gdf['road_width'] == road_width) &
+            (cluster_polygons_gdf['road_alignment'] == road_alignment) &
+            (cluster_polygons_gdf['road_shape'] == road_shape)
+        ]
         possible_polygons = possible_clusters.geometry.tolist()
         matches = cluster_tree.query(point)
         found = False
@@ -353,18 +405,19 @@ if __name__ == "__main__":
 
     # クラスターごとに引数を準備
     args_list = []
-    for (road_shape, cluster_label), group in assigned_data_gdf.groupby(['road_shape', 'cluster']):
+    for (road_width, road_alignment, road_shape, cluster_label), group in assigned_data_gdf.groupby(['road_width', 'road_alignment', 'road_shape', 'cluster']):
         if cluster_label == -1:
             continue  # クラスタが見つからなかったデータはスキップ
 
         # クラスターのジオメトリを取得
         cluster_polygon = cluster_polygons_gdf[
+            (cluster_polygons_gdf['road_width'] == road_width) &
+            (cluster_polygons_gdf['road_alignment'] == road_alignment) &
             (cluster_polygons_gdf['road_shape'] == road_shape) & (cluster_polygons_gdf['cluster'] == cluster_label)
         ]['geometry'].iloc[0]
 
         args_list.append((
-            road_shape, cluster_label, group, cluster_polygon, accident_tree, date_min_timestamp, date_max_timestamp,
-            hour_distribution, minute_distribution, weekday_distribution, weather_distributions_per_month, weather_distribution_overall
+            road_width, road_alignment, road_shape, cluster_label, group, cluster_polygon, accident_tree, date_min_timestamp, date_max_timestamp, hour_distribution, minute_distribution, weekday_distribution, weather_distributions_per_month, weather_distribution_overall, group
         ))
 
     # 並列処理でネガティブデータを生成
@@ -376,7 +429,7 @@ if __name__ == "__main__":
 
     # 6. ポジティブデータとネガティブデータを結合
     # 必要なカラムを選択
-    features = ['latitude', 'longitude', 'month', 'day', 'hour', 'minute', 'weekday', '昼夜区分', '天候区分', 'is_holiday','road_shape']
+    features = ['latitude', 'longitude', 'month', 'day', 'hour', 'weekday', '昼夜区分', '天候区分', 'is_holiday', 'road_width', 'road_alignment', 'road_shape']
     target = 'accident'
 
     # データフレームを連結
@@ -393,7 +446,7 @@ if __name__ == "__main__":
     # モデルで使用したラベルエンコーダーの読み込み
     label_encoders = joblib.load('label_encoders.pkl')
 
-    for column in ['昼夜区分', '天候区分','road_shape']:
+    for column in ['昼夜区分', '天候区分','road_width', 'road_alignment', 'road_shape']:
         le = label_encoders[column]
         data_ml[column] = le.transform(data_ml[column])
 
@@ -426,6 +479,16 @@ if __name__ == "__main__":
     # 10.2 昼夜コードから元のラベルに戻す
     inverse_day_night_dict = {index: label for index, label in enumerate(label_encoders['昼夜区分'].classes_)}
     data_ml['昼夜区分_label'] = data_ml['昼夜区分'].map(inverse_day_night_dict)
+
+    # 10.3 road_width, road_alignment, road_shape のラベルを戻す
+    inverse_road_width_dict = {index: label for index, label in enumerate(label_encoders['road_width'].classes_)}
+    data_ml['road_width_label'] = data_ml['road_width'].map(inverse_road_width_dict)
+
+    inverse_road_alignment_dict = {index: label for index, label in enumerate(label_encoders['road_alignment'].classes_)}
+    data_ml['road_alignment_label'] = data_ml['road_alignment'].map(inverse_road_alignment_dict)
+
+    inverse_road_shape_dict = {index: label for index, label in enumerate(label_encoders['road_shape'].classes_)}
+    data_ml['road_shape_label'] = data_ml['road_shape'].map(inverse_road_shape_dict)
 
     # 10.3 月を抽出（既に作成済み）
 

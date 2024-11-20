@@ -123,6 +123,7 @@ def process_cluster(args):
 
     # ネガティブデータの数を設定
     num_neg_samples = len(group) * 3
+    # 初期のネガティブポイントを一括生成
     negative_points = generate_random_points(cluster_polygon, num_neg_samples, accident_tree)
 
     if len(negative_points) < num_neg_samples:
@@ -139,7 +140,8 @@ def process_cluster(args):
 
     max_attempts = 10  # 再試行の最大回数
     attempts = 0
-
+    
+    # ネガティブデータの特徴量を一括で生成
     while attempts < max_attempts:
         # ネガティブデータの曜日をポジティブデータの分布に基づいてサンプリング
         sampled_weekdays = np.random.choice(
@@ -415,7 +417,6 @@ if __name__ == "__main__":
                     cluster_polygon = cluster_geometry.buffer(30)  # 15メートルのバッファ
                 else:
                     cluster_polygon = cluster_geometry.convex_hull.buffer(30)  # ポリゴンを50メートル拡大
-                    #編集中　この部分についてどういうことか詳しく聞く
 
                 cluster_polygons_list.append({
                     'road_width': road_width,
@@ -485,8 +486,7 @@ if __name__ == "__main__":
         negative_data = negative_data.to_crs('EPSG:4326')
 
         # 必要なカラムを選択
-        features = ['latitude', 'longitude', 'month', 'day', 'hour', 'minute', 'weekday', '昼夜区分', '天候区分',
-                    'is_holiday', 'road_width', 'road_alignment', 'road_shape']
+        features = ['latitude', 'longitude', 'month', 'day', 'hour', 'weekday', '昼夜区分', '天候区分', 'is_holiday', 'road_width', 'road_alignment', 'road_shape']
         target = 'accident'
 
         # カテゴリ変数のラベルエンコーディング

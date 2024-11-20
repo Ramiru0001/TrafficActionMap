@@ -246,21 +246,23 @@ function getWeatherAndRiskData(lat, lon) {
 //リスクデータを取得して表示
 function getRiskData() {
     try{
-        //編集中
+
+        // 分析中メッセージを表示 編集
+        const loadingMessage = document.getElementById('loadingMessage');
+        loadingMessage.style.display = 'block';
+        
         // フォームの値を取得
         var weatherSelect = document.getElementById('weather');
         var weather = weatherSelect.value;
 
         var dateInput = document.getElementById('date').value;
+        //編集
         var timeInput = document.getElementById('time').value;
+        timeInput = timeInput+":00" ;
 
         // 日付と時間を結合して datetime を作成
         var datetime = dateInput + ' ' + timeInput; // ISO形式の日時文字列
         //alert(datetime)
-        // 予測時間間隔を取得
-        var durationSelect = document.getElementById('prediction_duration');
-        var prediction_duration = parseInt(durationSelect.value);
-        
         // 半径予想範囲を取得
         var radiusSelect = document.getElementById('prediction_radius');
         var prediction_radius;
@@ -290,7 +292,6 @@ function getRiskData() {
             datetime: datetime,
             latitude: lat,
             longitude: lon,
-            prediction_duration: prediction_duration,
             prediction_radius:prediction_radius
         };
         fetch('/get_risk_data', {
@@ -309,9 +310,19 @@ function getRiskData() {
             return response.json();
         })
         .then(data => {
+            // データの内容を確認
+            //alert('Received data:', data);
+            if (data.riskData && data.riskData.length > 0) {
+                // リスクデータを地図に表示
+                displayRiskData(data.riskData);
+            } else {
+                console.log('指定された範囲内にリスクデータがありません。');
+            }
+            //alert(JSON.stringify(data.riskData));  // デバッグ用にデータを表示
+            // リスクデータを地図に表示
             // リスクデータを地図に表示
             displayRiskData(data.riskData);
-            alert(data.riskData)
+            //loadingMessage.style.display = 'none';
         })
         .catch(error => {
             console.error('Error:', error);
@@ -320,41 +331,44 @@ function getRiskData() {
     } catch(e) {
         alert( e.message );
     }
+    loadingMessage.style.display = 'none';
 }
 
-var riskMarkers = []; // 既存のリスクマーカーを保持
+var riskLayer;  // グローバル変数としてリスクレイヤーを保持
 
 function displayRiskData(riskData) {
-    // 既存のリスクマーカーを削除
-    riskMarkers.forEach(function(marker) {
-        map.removeLayer(marker);
-    });
-    riskMarkers = [];
-
-    // リスクデータをマップに表示
-    riskData.forEach(function(point) {
-        var lat = point.latitude;
-        var lon = point.longitude;
-        var risk = point.risk_score;
-
-        // リスクスコアに応じてマーカーの色を決定
-        var color;
-        if (risk > 0.7) {
-            color = 'red';
-        } else if (risk > 0.4) {
-            color = 'orange';
-        } else {
-            color = 'yellow';
+    try {
+        // 既存のリスクレイヤーを削除
+        if (riskLayer) {
+            map.removeLayer(riskLayer);
         }
+        // リスクデータをヒートマップ用に変換
+        var heatData = riskData.map(function(dataPoint) {
+            if (dataPoint.latitude && dataPoint.longitude && dataPoint.accident !== undefined) {
+                return [dataPoint.latitude, dataPoint.longitude, dataPoint.accident];  // [緯度, 経度, リスクスコア]
+            } else {
+                console.warn('Invalid data point:', dataPoint);
+                return null;
+            }
+        }).filter(Boolean);  // 無効なデータポイントを除外
 
-        var marker = L.circleMarker([lat, lon], {
-            radius: 5,
-            color: color,
-            fillOpacity: 0.7
+        // ヒートマップレイヤーを作成して地図に追加
+        riskLayer = L.heatLayer(heatData, {
+            radius: 25,
+            blur: 15,
+            maxZoom: 17,
+            max: 1,
+            gradient: {
+                0.0: 'green',   // リスクスコアが低い場合の色
+                0.5: 'orange', // リスクスコアが中程度の場合の色
+                1.0: 'red'     // リスクスコアが高い場合の色
+            }
         }).addTo(map);
-
-        riskMarkers.push(marker);
-    });
+        console.log('Heatmap layer added.');
+    } catch (error) {
+        console.error('Error in displayRiskData:', error);
+        alert('リスクデータの表示に失敗しました。');
+    }
 }
 
 // 住所検索機能
@@ -414,11 +428,9 @@ function resetall(){
     document.getElementById('date').value=dateInput;
 
     // 時間入力欄に現在の時間を設定
-    var timeInput = document.getElementById('time').value;
+    var timeInput = document.getElementById('time');
     var hours = ('0' + now.getHours()).slice(-2);
-    var minutes = ('0' + now.getMinutes()).slice(-2);
-    timeInput = hours + ':' + minutes;
-    document.getElementById('time').value=timeInput;
+    timeInput.value = hours;
     //マーカーから現在の位置情報を取得
     var lat, lon;
     if (marker) {
