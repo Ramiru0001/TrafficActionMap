@@ -1,0 +1,2 @@
+py project.py
+pause

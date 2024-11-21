@@ -5,7 +5,7 @@ echo %date%
 rem 現在時刻
 echo %time%
 
-py MachineLearning.py 
+py MachineLearning/MachineLearning.py 
 
 rem 現在日付
 echo %date%

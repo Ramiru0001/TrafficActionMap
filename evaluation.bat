@@ -1,2 +1,0 @@
-py evaluation.py
-pause
