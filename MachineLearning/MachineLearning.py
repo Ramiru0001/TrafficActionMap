@@ -33,6 +33,13 @@ JST = pytz.timezone('Asia/Tokyo')
 # メモリエラー対策
 max_memory_usage_mb = 40000  # 最大メモリ使用量をMB単位で設定
 
+# 保存先フォルダの相対パス
+output_folder = "../output_data"
+
+# フォルダが存在しない場合は作成
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
+
 def check_memory_usage(max_usage_mb):
     process = psutil.Process(os.getpid())
     mem_info = process.memory_info()
@@ -119,7 +126,7 @@ def is_duplicate(point, tree):
     return any(point.equals(p) for p in possible_duplicates)
 
 
-def get_weather_distribution(cluster, clusters, max_radius=5000, step=100):
+def get_weather_distribution(cluster, clusters, weather_distribution_overall, max_radius=5000, step=100):
     """
     指定したクラスターと周囲のクラスターから天候分布を取得する。
 
@@ -132,12 +139,23 @@ def get_weather_distribution(cluster, clusters, max_radius=5000, step=100):
     Returns:
         月ごとの天候分布（辞書形式）。
     """
+    # 座標チェック関数
+    def is_valid_coordinates(lat, lon):
+        return (-90 <= lat <= 90) and (-180 <= lon <= 180)
+    
+    # 対象クラスターの近隣を探索
+    if not is_valid_coordinates(cluster['latitude'], cluster['longitude']):
+        print(f"cluster数値エラー:lat:{cluster['latitude']}:lon:{cluster['longitude']}")
+
     current_radius = 500  # 初期半径
     while current_radius <= max_radius:
         nearby_clusters = []
-        
-        # 対象クラスターの近隣を探索
+    
         for other_cluster in clusters:
+            
+            if not is_valid_coordinates(other_cluster['latitude'], other_cluster['longitude']):
+                print(f"other_cluster数値エラー:lat:{other_cluster['latitude']}:lon:{other_cluster['longitude']}")
+                
             distance = geodesic((cluster['latitude'], cluster['longitude']), 
                                 (other_cluster['latitude'], other_cluster['longitude'])).meters
             if distance <= current_radius:
@@ -159,7 +177,7 @@ def get_weather_distribution(cluster, clusters, max_radius=5000, step=100):
             
             # 確率に正規化
             for month in weather_distribution:
-                total = sum(weather_distribution[month].values())
+                total = sum(weather_distribution[month].values)
                 # 正規化して辞書形式を Pandas Series に変換
                 weather_distribution[month] = pd.Series(
                     {k: v / total for k, v in weather_distribution[month].items()}
@@ -169,20 +187,27 @@ def get_weather_distribution(cluster, clusters, max_radius=5000, step=100):
         # 半径を広げる
         current_radius += step
     
-    # 十分なデータが得られない場合、全体の分布を返す
-    return weather_distribution_overall
+    # 十分なデータが得られない場合、全体の分布を各月に割り当てて返す
+    return {month: weather_distribution_overall for month in range(1, 13)}
 
 # クラスター処理関数（並列用）
 def process_cluster(args):
     (road_width, road_alignment, road_shape, cluster_label, group, cluster_polygon, accident_tree, date_min_timestamp, date_max_timestamp, hour_distribution, minute_distribution, weekday_distribution, weather_distribution_overall, positive_data_group, clusters) = args
 
-    # クラスターのセントロイド座標を取得
+    # クラスターポリゴンのセントロイドを取得
+    centroid = cluster_polygon.centroid
+
+    aeqd_crs = CRS(proj='aeqd', lat_0=35, lon_0=136, datum='WGS84', units='m')
+    # セントロイドをWGS84に変換
+    centroid_wgs84 = gpd.GeoSeries([centroid], crs=aeqd_crs).to_crs('EPSG:4326').iloc[0]
+
+    # 緯度・経度を取得
     cluster_coords = {
-        'latitude': cluster_polygon.centroid.y,
-        'longitude': cluster_polygon.centroid.x
+        'latitude': centroid_wgs84.y,
+        'longitude': centroid_wgs84.x
     }
     # 天候分布を取得
-    weather_distributions_per_month = get_weather_distribution(cluster_coords, clusters)
+    weather_distributions_per_month = get_weather_distribution(cluster_coords, clusters, weather_distribution_overall)
 
     # ネガティブデータの数を設定
     num_neg_samples = len(group) * 3
@@ -192,7 +217,6 @@ def process_cluster(args):
     if len(negative_points) < num_neg_samples:
         print(f"警告: クラスター {(road_width, road_alignment, road_shape, cluster_label)} のネガティブデータが目標数に達しませんでした。生成数: {len(negative_points)}")
         
-    aeqd_crs = CRS(proj='aeqd', lat_0=35, lon_0=136, datum='WGS84', units='m')
     # GeoDataFrame作成
     neg_gdf = gpd.GeoDataFrame({'geometry': negative_points}, crs=aeqd_crs)
     # 座標系をWGS84に変換
@@ -330,16 +354,16 @@ if __name__ == "__main__":
     # 1. 事故データの読み込みと処理
     try:
         # 事故データの読み込み
-        accident_data_2023 = pd.read_csv('AccidentData/TrafficAccidentMap_Data/read_codeChange/honhyo_2023.csv')
-        accident_data_2022 = pd.read_csv('AccidentData/TrafficAccidentMap_Data/read_codeChange/honhyo_2022.csv')
-        accident_data_2021 = pd.read_csv('AccidentData/TrafficAccidentMap_Data/read_codeChange/honhyo_2021.csv')
-        accident_data_2020 = pd.read_csv('AccidentData/TrafficAccidentMap_Data/read_codeChange/honhyo_2020.csv')
+        accident_data_2023 = pd.read_csv('AccidentData/honhyo_2023.csv')
+        accident_data_2022 = pd.read_csv('AccidentData/honhyo_2022.csv')
+        accident_data_2021 = pd.read_csv('AccidentData/honhyo_2021.csv')
+        accident_data_2020 = pd.read_csv('AccidentData/honhyo_2020.csv')
 
         # データの結合
-        #accident_data = pd.concat([accident_data_2023], ignore_index=True)
-        # print(f"1年分のデータを使用します。")
-        accident_data = pd.concat([accident_data_2023, accident_data_2022,accident_data_2021,accident_data_2020], ignore_index=True)
-        print(f"4年分のデータを使用します。")
+        accident_data = pd.concat([accident_data_2023], ignore_index=True)
+        print(f"1年分のデータを使用します。")
+        # accident_data = pd.concat([accident_data_2023, accident_data_2022,accident_data_2021,accident_data_2020], ignore_index=True)
+        # print(f"4年分のデータを使用します。")
         # 緯度・経度の欠損値を削除
         data = accident_data.dropna(subset=['地点　緯度（北緯）', '地点　経度（東経）'])
 
@@ -494,9 +518,12 @@ if __name__ == "__main__":
         # クラスターポリゴンのGeoDataFrameを作成
         cluster_polygons_gdf = gpd.GeoDataFrame(cluster_polygons_list, crs=aeqd_crs)
 
-        # クラスターポリゴンを保存（後で予測時に使用するため）
-        cluster_polygons_gdf.to_crs('EPSG:4326').to_file('cluster_polygons.geojson', driver='GeoJSON')
-        print("geojson作成")
+        # ファイルパスを組み立てる
+        output_file_path = os.path.join(output_folder, "cluster_polygons.geojson")
+
+        # GeoJSONを保存
+        cluster_polygons_gdf.to_crs('EPSG:4326').to_file(output_file_path, driver='GeoJSON')
+        print(f"GeoJSONを作成しました: {output_file_path}")
 
     except Exception as e:
         print(f"エラー: {e}")
@@ -538,6 +565,8 @@ if __name__ == "__main__":
             
             # セントロイドの取得
             centroid = cluster_polygon.centroid
+            # セントロイドをWGS84に変換
+            centroid_wgs84 = gpd.GeoSeries([centroid], crs=aeqd_crs).to_crs('EPSG:4326').iloc[0]
             # ポジティブポイント数
             positive_points = len(group)
             # 月ごとの天候分布
@@ -548,8 +577,8 @@ if __name__ == "__main__":
                 monthly_weather[month] = weather_distribution  # Pandas Series として保存
 
             clusters.append({
-                'latitude': centroid.y,
-                'longitude': centroid.x,
+                'latitude': centroid_wgs84.y,
+                'longitude': centroid_wgs84.x,
                 'positive_points': positive_points,
                 'monthly_weather': monthly_weather
             })
@@ -624,12 +653,15 @@ if __name__ == "__main__":
         print(confusion_matrix(y_test, y_pred))
         
         # モデルの保存
-        model_filename = f'accident_risk_model.pkl'
+        model_filename = os.path.join(output_folder, "accident_risk_model.pkl")
         joblib.dump(model, model_filename)
 
         # ラベルエンコーダーの保存
-        encoder_filename = f'label_encoders.pkl'
+        encoder_filename = os.path.join(output_folder, "label_encoders.pkl")
         joblib.dump(label_encoders, encoder_filename)
+
+        print(f"モデルを保存しました: {model_filename}")
+        print(f"ラベルエンコーダーを保存しました: {encoder_filename}")
 
     except Exception as e:
         print(f"エラー: {e}")
