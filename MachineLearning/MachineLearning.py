@@ -178,10 +178,18 @@ def get_weather_distribution(cluster, clusters, weather_distribution_overall, ma
             # 確率に正規化
             for month in weather_distribution:
                 total = sum(weather_distribution[month].values)
-                # 正規化して辞書形式を Pandas Series に変換
-                weather_distribution[month] = pd.Series(
-                    {k: v / total for k, v in weather_distribution[month].items()}
-                )
+                if total > 0:
+                    # 正規化して辞書形式を Pandas Series に変換
+                    weather_distribution[month] = pd.Series(
+                        {k: v / total for k, v in weather_distribution[month].items()}
+                    )
+                else:
+                    # totalがゼロの場合は、均等な確率を割り当てる
+                    num_items = len(weather_distribution[month])
+                    equal_prob = 1.0 / num_items if num_items > 0 else 0
+                    weather_distribution[month] = pd.Series(
+                        {k: equal_prob for k in weather_distribution[month].keys()}
+                    )
             return weather_distribution
         
         # 半径を広げる
@@ -192,7 +200,7 @@ def get_weather_distribution(cluster, clusters, weather_distribution_overall, ma
 
 # クラスター処理関数（並列用）
 def process_cluster(args):
-    (road_width, road_alignment, road_shape, cluster_label, group, cluster_polygon, accident_tree, date_min_timestamp, date_max_timestamp, hour_distribution, minute_distribution, weekday_distribution, weather_distribution_overall, positive_data_group, clusters) = args
+    (weather_distributions_by_municipality,municipality_code, road_width, road_alignment, road_shape, cluster_label, group, cluster_polygon, accident_tree, date_min_timestamp, date_max_timestamp, hour_distribution, minute_distribution, weekday_distribution, weather_distribution_overall, positive_data_group, clusters) = args
 
     # クラスターポリゴンのセントロイドを取得
     centroid = cluster_polygon.centroid
@@ -206,8 +214,21 @@ def process_cluster(args):
         'latitude': centroid_wgs84.y,
         'longitude': centroid_wgs84.x
     }
-    # 天候分布を取得
-    weather_distributions_per_month = get_weather_distribution(cluster_coords, clusters, weather_distribution_overall)
+    
+    # 市区町村コードに対応する天候分布を取得
+    weather_distributions_per_month = weather_distributions_by_municipality.get(municipality_code)
+
+    # 該当市区町村に天候分布がない場合は全体の分布を使用
+    if weather_distributions_per_month is None:
+        weather_distributions_per_month = {month: weather_distribution_overall for month in range(1, 13)}
+    else:
+        # データがない月には全体の天候分布を使用
+        for month in range(1, 13):
+            if month not in weather_distributions_per_month:
+                weather_distributions_per_month[month] = weather_distribution_overall
+                
+    # # 天候分布を取得
+    # weather_distributions_per_month = get_weather_distribution(cluster_coords, clusters, weather_distribution_overall)
 
     # ネガティブデータの数を設定
     num_neg_samples = len(group) * 3
@@ -282,6 +303,8 @@ def process_cluster(args):
             month = row['month']
             weather_distribution = weather_distributions_per_month.get(month)
             if weather_distribution is not None and len(weather_distribution) > 0:
+                if weather_distribution.isnull().any() or weather_distribution.sum() == 0:
+                    weather_distribution = weather_distribution_overall
                 return np.random.choice(
                     weather_distribution.index,
                     p=weather_distribution.values
@@ -360,10 +383,10 @@ if __name__ == "__main__":
         accident_data_2020 = pd.read_csv('AccidentData/honhyo_2020.csv')
 
         # データの結合
-        accident_data = pd.concat([accident_data_2023], ignore_index=True)
-        print(f"1年分のデータを使用します。")
-        # accident_data = pd.concat([accident_data_2023, accident_data_2022,accident_data_2021,accident_data_2020], ignore_index=True)
-        # print(f"4年分のデータを使用します。")
+        # accident_data = pd.concat([accident_data_2023], ignore_index=True)
+        # print(f"1年分のデータを使用します。")
+        accident_data = pd.concat([accident_data_2023, accident_data_2022,accident_data_2021,accident_data_2020], ignore_index=True)
+        print(f"4年分のデータを使用します。")
         # 緯度・経度の欠損値を削除
         data = accident_data.dropna(subset=['地点　緯度（北緯）', '地点　経度（東経）'])
 
@@ -405,7 +428,8 @@ if __name__ == "__main__":
             '発生日時　　分': 'minute',
             '道路形状': 'road_shape',          # '道路形状' 列をリネーム
             '車道幅員': 'road_width',          # '車道幅員' 列をリネーム
-            '道路線形': 'road_alignment'       # '道路線形' 列をリネーム
+            '道路線形': 'road_alignment',      # '道路線形' 列をリネーム
+            '市区町村コード': 'municipality_code'  # '市区町村コード' をリネーム
         })
 
         # 発生日時を datetime 型に変換
@@ -451,12 +475,22 @@ if __name__ == "__main__":
         weather_distribution_overall = data['天候区分'].value_counts(normalize=True)
 
 
-        # 月ごとの天候分布を取得
-        weather_distributions_per_month = {}
-        for month in data['month'].unique():
-            month_data = data[data['month'] == month]
-            weather_distribution = month_data['天候区分'].value_counts(normalize=True)
-            weather_distributions_per_month[month] = weather_distribution
+        # 市区町村コードごとの月別天候分布を取得
+        weather_distributions_by_municipality = {}
+        grouped_weather = data.groupby(['municipality_code', 'month'])
+
+        for (municipality_code, month), group in grouped_weather:
+            weather_distribution = group['天候区分'].value_counts(normalize=True)
+            if municipality_code not in weather_distributions_by_municipality:
+                weather_distributions_by_municipality[municipality_code] = {}
+            weather_distributions_by_municipality[municipality_code][month] = weather_distribution
+            
+        # # 月ごとの天候分布を取得
+        # weather_distributions_per_month = {}
+        # for month in data['month'].unique():
+        #     month_data = data[data['month'] == month]
+        #     weather_distribution = month_data['天候区分'].value_counts(normalize=True)
+        #     weather_distributions_per_month[month] = weather_distribution
 
     except Exception as e:
         print(f"エラー: {e}")
@@ -469,14 +503,15 @@ if __name__ == "__main__":
         data_positive_gdf = data_positive_gdf.to_crs(aeqd_crs)
 
         # 'road_width'、'road_alignment'、'road_shape' ごとにデータを分割
-        grouped = data_positive_gdf.groupby(['road_width', 'road_alignment', 'road_shape'])
+        # クラスター作成時に、市区町村コードを含めてグループ化
+        grouped = data_positive_gdf.groupby(['municipality_code','road_width', 'road_alignment', 'road_shape'])
         
         # 全てのクラスターを保持するリスト
         all_clusters = []
         cluster_polygons_list = []
 
         # 各グループごとにクラスタリングを実施
-        for (road_width, road_alignment, road_shape), group in grouped:
+        for (municipality_code, road_width, road_alignment, road_shape), group in grouped:
             coords = np.array(list(zip(group.geometry.x, group.geometry.y)))
 
             # DBSCANによるクラスタリング（半径30メートル）
@@ -487,6 +522,7 @@ if __name__ == "__main__":
             group['cluster'] = cluster_labels
 
             # グループの情報を維持
+            group['municipality_code'] = municipality_code
             group['road_width'] = road_width
             group['road_alignment'] = road_alignment
             group['road_shape'] = road_shape
@@ -506,6 +542,7 @@ if __name__ == "__main__":
                     cluster_polygon = cluster_geometry.convex_hull.buffer(30)  # ポリゴンを50メートル拡大
 
                 cluster_polygons_list.append({
+                    'municipality_code': municipality_code,
                     'road_width': road_width,
                     'road_alignment': road_alignment,
                     'road_shape': road_shape,
@@ -553,10 +590,11 @@ if __name__ == "__main__":
         # クラスター情報の構築
         clusters = []
 
-        for (road_width, road_alignment, road_shape, cluster_label), group in clustered_data.groupby(['road_width', 'road_alignment', 'road_shape', 'cluster']):
+        for (municipality_code, road_width, road_alignment, road_shape, cluster_label), group in clustered_data.groupby(['municipality_code','road_width', 'road_alignment', 'road_shape', 'cluster']):
             
             # クラスターポリゴンの取得
             cluster_polygon = cluster_polygons_gdf[
+                (cluster_polygons_gdf['municipality_code'] == municipality_code) &
                 (cluster_polygons_gdf['road_width'] == road_width) &
                 (cluster_polygons_gdf['road_alignment'] == road_alignment) &
                 (cluster_polygons_gdf['road_shape'] == road_shape) &
@@ -569,21 +607,22 @@ if __name__ == "__main__":
             centroid_wgs84 = gpd.GeoSeries([centroid], crs=aeqd_crs).to_crs('EPSG:4326').iloc[0]
             # ポジティブポイント数
             positive_points = len(group)
-            # 月ごとの天候分布
-            monthly_weather = {}
-            for month in group['month'].unique():
-                month_data = group[group['month'] == month]
-                weather_distribution = month_data['天候区分'].value_counts(normalize=True)
-                monthly_weather[month] = weather_distribution  # Pandas Series として保存
+            # # 月ごとの天候分布
+            # monthly_weather = {}
+            # for month in group['month'].unique():
+            #     month_data = group[group['month'] == month]
+            #     weather_distribution = month_data['天候区分'].value_counts(normalize=True)
+            #     monthly_weather[month] = weather_distribution  # Pandas Series として保存
 
             clusters.append({
+                'municipality_code': municipality_code,
                 'latitude': centroid_wgs84.y,
                 'longitude': centroid_wgs84.x,
                 'positive_points': positive_points,
-                'monthly_weather': monthly_weather
+                # 'monthly_weather': monthly_weather
             })
 
-            args_list.append((road_width, road_alignment, road_shape, cluster_label, group, cluster_polygon, accident_tree,date_min_timestamp, date_max_timestamp, hour_distribution, minute_distribution, weekday_distribution, weather_distribution_overall, group, clusters ))
+            args_list.append((weather_distributions_by_municipality,municipality_code, road_width, road_alignment, road_shape, cluster_label, group, cluster_polygon, accident_tree,date_min_timestamp, date_max_timestamp, hour_distribution, minute_distribution, weekday_distribution, weather_distribution_overall, group, clusters ))
 
         # 並列処理でクラスタごとにネガティブデータ生成
         with Pool(processes=8) as pool:  # CPUコア数に応じて調整

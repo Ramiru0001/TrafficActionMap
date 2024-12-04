@@ -29,17 +29,31 @@ import geopandas as gpd
 from shapely.geometry import Point
 import signal
 
+print(f"Now Loading")
 app = Flask(__name__)
 app.logger.debug('DEBUG')
 # 環境変数から API キーを取得
 api_key = os.environ.get('OPENWEATHERMAP_API_KEY')
 
+# ベースディレクトリを取得（スクリプトが実行されているディレクトリ）
+base_dir = os.path.dirname(os.path.abspath(__file__))
+
+# output_data ディレクトリのパスを組み立て
+output_data_dir = os.path.join(base_dir, '../output_data')
+
+# モデルとラベルエンコーダーの相対パス
+model_path = os.path.join(output_data_dir, 'accident_risk_model.pkl')
+label_encoders_path = os.path.join(output_data_dir, 'label_encoders.pkl')
+
+# クラスターの相対パス
+cluster_polygons_path = os.path.join(output_data_dir, 'cluster_polygons.geojson')
+
 # モデルとラベルエンコーダーの読み込み
-model = joblib.load('accident_risk_model.pkl')
-label_encoders = joblib.load('label_encoders.pkl')
+model = joblib.load(model_path)
+label_encoders = joblib.load(label_encoders_path)
 
 # クラスターの読み込み
-cluster_polygons_gdf = gpd.read_file('cluster_polygons.geojson')
+cluster_polygons_gdf = gpd.read_file(cluster_polygons_path)
 cluster_polygons_gdf = cluster_polygons_gdf.to_crs(epsg=4326)  # WGS84 座標系に変換
 
 # 日本標準時のタイムゾーンを取得
