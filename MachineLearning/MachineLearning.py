@@ -383,10 +383,10 @@ if __name__ == "__main__":
         accident_data_2020 = pd.read_csv('AccidentData/honhyo_2020.csv')
 
         # データの結合
-        # accident_data = pd.concat([accident_data_2023], ignore_index=True)
-        # print(f"1年分のデータを使用します。")
-        accident_data = pd.concat([accident_data_2023, accident_data_2022,accident_data_2021,accident_data_2020], ignore_index=True)
-        print(f"4年分のデータを使用します。")
+        accident_data = pd.concat([accident_data_2023], ignore_index=True)
+        print(f"1年分のデータを使用します。")
+        # accident_data = pd.concat([accident_data_2023, accident_data_2022,accident_data_2021,accident_data_2020], ignore_index=True)
+        # print(f"4年分のデータを使用します。")
         # 緯度・経度の欠損値を削除
         data = accident_data.dropna(subset=['地点　緯度（北緯）', '地点　経度（東経）'])
 
@@ -625,7 +625,7 @@ if __name__ == "__main__":
             args_list.append((weather_distributions_by_municipality,municipality_code, road_width, road_alignment, road_shape, cluster_label, group, cluster_polygon, accident_tree,date_min_timestamp, date_max_timestamp, hour_distribution, minute_distribution, weekday_distribution, weather_distribution_overall, group, clusters ))
 
         # 並列処理でクラスタごとにネガティブデータ生成
-        with Pool(processes=8) as pool:  # CPUコア数に応じて調整
+        with Pool(processes=6) as pool:  # CPUコア数に応じて調整
             results = pool.map(process_cluster, args_list)
 
         # 結果を結合

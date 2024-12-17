@@ -261,7 +261,7 @@ function getRiskData() {
         timeInput = timeInput+":00" ;
 
         // 日付と時間を結合して datetime を作成
-        var datetime = dateInput + ' ' + timeInput; // ISO形式の日時文字列
+        var datetime = dateInput + 'T' + timeInput; // ISO形式の日時文字列
         //alert(datetime)
         // 半径予想範囲を取得
         var radiusSelect = document.getElementById('prediction_radius');
