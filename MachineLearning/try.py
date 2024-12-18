@@ -8,10 +8,25 @@ import jpholiday
 import joblib
 import geopandas as gpd
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
 from shapely.geometry import Point
 import matplotlib as mpl
 import contextily as ctx
 from shapely.geometry import box
+
+# フォントのパスを指定（お使いの環境に合わせてください）
+font_path = './Fonts//NotoSansJP-Light.ttf'
+# フォントプロパティを作成
+font_prop = fm.FontProperties(fname=font_path)
+
+# フォント名を取得
+font_name = font_prop.get_name()
+
+# デフォルトフォントに設定
+mpl.rcParams['font.family'] = font_name
+
+# マイナス符号の文字化けを防ぐ
+mpl.rcParams['axes.unicode_minus'] = False
 
 # 昼夜区分と天候区分をmapする関数 (get_risk_data参照)
 def map_day_night(code):
@@ -52,6 +67,8 @@ def get_day_night_code(lat, lon, date_time):
     else:
         return 0  # 不明
 
+
+    
 #############################################
 # 必要なデータのパス設定
 model_path = "../output_data/accident_risk_model.pkl"
@@ -157,29 +174,35 @@ japan_gdf = japan_gdf.to_crs(epsg=3857)
 fig, ax = plt.subplots(figsize=(12, 12))
 japan_gdf.plot(ax=ax, edgecolor="red", facecolor="none")  # 日本の範囲を赤枠で表示
 
-ctx.add_basemap(
-    ax, 
-    crs=japan_gdf.crs, 
-    source=ctx.providers.OpenStreetMap.Mapnik,  # カラフルな地図スタイル
-    zoom=10  # 解像度を上げる
-                )
+try:
+    ctx.add_basemap(
+        ax, 
+        crs=japan_gdf.crs, 
+        source=ctx.providers.OpenStreetMap.Mapnik,  # カラフルな地図スタイル
+        zoom=10  # 解像度を上げる
+    )
 
-# リスク散布
-sc = ax.scatter(
-    points_gdf_3857.geometry.x,
-    points_gdf_3857.geometry.y,
-    c=points_gdf_3857['accident'],
-    cmap='Reds',
-    alpha=0.7,
-    s=10
-)
+    # リスク散布
+    sc = ax.scatter(
+        points_gdf_3857.geometry.x,
+        points_gdf_3857.geometry.y,
+        c=points_gdf_3857['accident'],
+        cmap='Reds',
+        alpha=0.7,
+        s=10
+    )
 
-# タイトルと調整
-ax.set_title("日本全体の地図 (カラフルなデザイン)", fontsize=16)
-ax.set_axis_off()
+    # タイトルと調整
+    ax.set_title("日本全体の地図 (カラフルなデザイン)", fontsize=16)
+    ax.set_axis_off()
+    
 
-plt.show()
+    plt.show()
+    plt.savefig("japan_cluster_accident_risk_poster_with_map.png", dpi=300)
+    plt.close(fig)
 
+except Exception as e:
+    print(f"ベースマップの追加に失敗しました: {e}")
 # cbar = fig.colorbar(sc, ax=ax, fraction=0.03, pad=0.04)
 # cbar.set_label('Accident Risk Probability', fontsize=10)
 
