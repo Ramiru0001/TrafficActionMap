@@ -14,19 +14,19 @@ import matplotlib as mpl
 import contextily as ctx
 from shapely.geometry import box
 
-# フォントのパスを指定（お使いの環境に合わせてください）
-font_path = './Fonts//NotoSansJP-Light.ttf'
-# フォントプロパティを作成
-font_prop = fm.FontProperties(fname=font_path)
+# # フォントのパスを指定（お使いの環境に合わせてください）
+# font_path = './Fonts/NotoSansJP-Light.ttf'
+# # フォントプロパティを作成
+# font_prop = fm.FontProperties(fname=font_path)
 
-# フォント名を取得
-font_name = font_prop.get_name()
+# # フォント名を取得
+# font_name = font_prop.get_name()
 
-# デフォルトフォントに設定
-mpl.rcParams['font.family'] = font_name
+# # デフォルトフォントに設定
+# mpl.rcParams['font.family'] = font_name
 
-# マイナス符号の文字化けを防ぐ
-mpl.rcParams['axes.unicode_minus'] = False
+# # マイナス符号の文字化けを防ぐ
+# mpl.rcParams['axes.unicode_minus'] = False
 
 # 昼夜区分と天候区分をmapする関数 (get_risk_data参照)
 def map_day_night(code):
@@ -172,14 +172,16 @@ japan_gdf = japan_gdf.to_crs(epsg=3857)
 
 # 描画
 fig, ax = plt.subplots(figsize=(12, 12))
-japan_gdf.plot(ax=ax, edgecolor="red", facecolor="none")  # 日本の範囲を赤枠で表示
+#japan_gdf.plot(ax=ax, edgecolor="red", facecolor="none")  # 日本の範囲を赤枠で表示
+japan_gdf.plot(ax=ax, facecolor="none")  # 日本の範囲を赤枠で表示
 
 try:
     ctx.add_basemap(
         ax, 
-        crs=japan_gdf.crs, 
+        crs=points_gdf_3857.crs, 
         source=ctx.providers.OpenStreetMap.Mapnik,  # カラフルな地図スタイル
-        zoom=10  # 解像度を上げる
+        zoom=10,  # 解像度を上げる
+        reset_extent=False
     )
 
     # リスク散布
@@ -192,26 +194,30 @@ try:
         s=10
     )
 
+    # 日本列島を少し下に移動するには y方向の範囲を調整
+    minx, miny, maxx, maxy = points_gdf_3857.total_bounds
+    xrange = maxx - minx
+    yrange = maxy - miny
+    # 通常は軸範囲をそのままにすると日本列島が中央に来ますが、下方向にシフトしたい場合、
+    # maxyを小さくするか、minyを小さくするなどで調整します。
+    # 例えば、上を狭めて下側に少し余裕を作る:
+    ax.set_xlim(minx - xrange*0.1, maxx + xrange*0.3)
+    ax.set_ylim(miny - yrange*0.0, maxy + yrange*0.2)  
     # タイトルと調整
-    ax.set_title("日本全体の地図 (カラフルなデザイン)", fontsize=16)
+    # ax.set_title("日本全体の地図 (カラフルなデザイン)", fontsize=16)
     ax.set_axis_off()
-    
+    ax.grid(False)
 
-    plt.show()
-    plt.savefig("japan_cluster_accident_risk_poster_with_map.png", dpi=300)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    plt.box(False)
+
+    # もしまだ残るなら微調整
+    plt.subplots_adjust(left=0, bottom=0, right=1, top=1)
+
+    plt.savefig("japan_cluster_accident_risk_poster_clean.png", dpi=300)
     plt.close(fig)
+    print("画像がjapan_cluster_accident_risk_poster_clean.pngに保存されました。")
 
 except Exception as e:
     print(f"ベースマップの追加に失敗しました: {e}")
-# cbar = fig.colorbar(sc, ax=ax, fraction=0.03, pad=0.04)
-# cbar.set_label('Accident Risk Probability', fontsize=10)
-
-# ax.set_title("Predicted Accident Risk Across Japan (Clusters)", fontsize=12)
-# ax.set_xlabel("Longitude")
-# ax.set_ylabel("Latitude")
-
-# plt.tight_layout()
-# plt.savefig("japan_cluster_accident_risk_poster_with_map.png", dpi=300)
-# plt.close(fig)
-
-# print("A4ポスター 'japan_cluster_accident_risk_poster_with_map.png' が背景地図付きで作成されました。")
