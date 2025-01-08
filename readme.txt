@@ -9,9 +9,8 @@
 
 ### 1. 機械学習モデルの生成
 機械学習を行いモデルを生成します。  
-**MachineLearning.bat** を実行すると、以下のフォルダに学習済みモデルが出力されます:
+**MachineLearning/MachineLearning.bat** を実行すると、[output_data]フォルダに学習済みモデルが出力されます:
 
-output_data/accident_risk_model.pkl
 
 - **実行時間**: 約4～5時間
 - **必要PCスペック**: メモリ48GB以上推奨（64GB以上のPCでしか実行していないので何GBまでなら実行可能か不明です。）
