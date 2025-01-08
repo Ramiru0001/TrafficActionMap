@@ -1,0 +1,2 @@
+py MakeStarJapan.py
+pause
